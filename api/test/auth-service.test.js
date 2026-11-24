@@ -137,6 +137,17 @@ test('login berhasil mengosongkan hitungan gagal', async () => {
   assert.equal(deps.attempts.has('standard_user'), false);
 });
 
+test('/reset: keranjang & pesanan selalu dikosongkan, katalog hanya untuk admin', async () => {
+  const deps = createFakeDeps();
+  const calls = [];
+  deps.resetShopping = async (id) => calls.push(`shop:${id}`);
+  deps.resetCatalog = async (id) => calls.push(`catalog:${id}`);
+  const auth = createAuthService(deps);
+  await auth.reset('Bearer token:1');
+  await auth.reset('Bearer token:2');
+  assert.deepEqual(calls, ['shop:1', 'shop:2', 'catalog:2']);
+});
+
 test('/me dengan token valid mengembalikan profil', async () => {
   const auth = createAuthService(createFakeDeps());
   const res = await auth.me('Bearer token:2');

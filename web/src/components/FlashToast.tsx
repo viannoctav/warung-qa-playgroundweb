@@ -1,22 +1,36 @@
 import { useEffect, useState } from 'react'
 import { clearFlashToast, peekFlashToast } from '../auth'
+import { TOAST_EVENT } from '../toast'
 
-// Menampilkan pesan toast yang dititipkan dari halaman sebelumnya, selama 3 detik
+type Toast = { text: string; id: number }
+
+let nextId = 1
+
+// Menampilkan toast dari halaman sebelumnya (flash) atau dari showToast(), selama 3 detik
 export default function FlashToast() {
-  const [message, setMessage] = useState<string | null>(peekFlashToast)
+  const [toast, setToast] = useState<Toast | null>(() => {
+    const text = peekFlashToast()
+    return text ? { text, id: nextId++ } : null
+  })
 
   useEffect(() => {
-    if (!message) return
-    clearFlashToast()
-    const timer = window.setTimeout(() => setMessage(null), 3000)
-    return () => window.clearTimeout(timer)
-  }, [message])
+    const onToast = (event: Event) => setToast({ text: (event as CustomEvent<string>).detail, id: nextId++ })
+    window.addEventListener(TOAST_EVENT, onToast)
+    return () => window.removeEventListener(TOAST_EVENT, onToast)
+  }, [])
 
-  if (!message) return null
+  useEffect(() => {
+    if (!toast) return
+    clearFlashToast()
+    const timer = window.setTimeout(() => setToast(null), 3000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
+
+  if (!toast) return null
 
   return (
-    <div className="toast toast-success" id="toast-success" data-testid="toast-success" role="status">
-      {message}
+    <div className="toast toast-success" id="toast-success" data-testid="toast-success" role="status" key={toast.id}>
+      {toast.text}
     </div>
   )
 }

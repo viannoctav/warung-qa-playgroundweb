@@ -67,6 +67,7 @@ async function findTakenIdentifiers(username, email) {
   };
 }
 
+// Akun hasil registrasi ber-role admin untuk katalog produknya sendiri (PRD Produk)
 async function createUser(user) {
   const sql = getSql();
   const rows = await sql`
@@ -74,7 +75,7 @@ async function createUser(user) {
       username, name, password_hash, role, behavior, is_demo,
       email, phone, birth_date, gender
     ) VALUES (
-      ${user.username}, ${user.name}, ${user.passwordHash}, 'user', 'normal', false,
+      ${user.username}, ${user.name}, ${user.passwordHash}, 'admin', 'normal', false,
       ${user.email}, ${user.phone}, ${user.birthDate}, ${user.gender}
     )
     RETURNING id, username, name, role

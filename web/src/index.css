@@ -1,6 +1,6 @@
 /*
   Warung QA — dark mode tech
-  Warna diambil dari dunia test runner: hijau = lolos, merah = gagal, ungu = fokus/aksi sekunder.
+  Oranye mengikuti logo (aksi utama & fokus). Hijau = sukses, merah = gagal.
 */
 :root {
   color-scheme: dark;
@@ -12,11 +12,14 @@
   --line-strong: #3a4766;
   --text: #e7ebf5;
   --muted: #8e98b3;
-  --pass: #42d392; /* aksi utama & sukses */
+  --accent: #fd8101; /* oranye logo: aksi utama */
+  --accent-hover: #ff9a33;
+  --accent-ink: #1f1000; /* teks di atas oranye */
+  --pass: #42d392; /* sukses */
   --pass-ink: #052a1a; /* teks di atas hijau */
   --fail: #ff6b72; /* error */
   --fail-bg: rgb(255 107 114 / 10%);
-  --focus: #a493ff; /* fokus & link */
+  --focus: #ffb15c; /* fokus & link */
   --warn: #f2c14e;
 
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -64,14 +67,14 @@ a {
 }
 
 a:hover {
-  color: #c4b9ff;
+  color: #ffd09c;
 }
 
 code {
   font-family: var(--font-mono);
   font-size: 0.85em;
-  color: var(--pass);
-  background: rgb(66 211 146 / 10%);
+  color: var(--focus);
+  background: rgb(253 129 1 / 12%);
   padding: 1px 6px;
   border-radius: 4px;
 }
@@ -82,7 +85,7 @@ code {
 }
 
 ::selection {
-  background: rgb(164 147 255 / 35%);
+  background: rgb(253 129 1 / 35%);
 }
 
 @media (prefers-reduced-motion: reduce) {

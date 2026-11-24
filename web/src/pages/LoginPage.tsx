@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ApiError, NETWORK_ERROR_MESSAGE, login } from '../api'
-import { clearPrefillUsername, peekPrefillUsername, saveSession, setFlashToast } from '../auth'
+import { clearPrefillUsername, peekPrefillUsername, saveSession, setFlashToast, homePath } from '../auth'
 import AuthLayout from '../components/AuthLayout'
 import FlashToast from '../components/FlashToast'
 import { Link, navigate } from '../router'
@@ -76,7 +76,7 @@ export default function LoginPage() {
       const result = await login(username, password, remember)
       saveSession(result.token, result.user, remember)
       setFlashToast(`Selamat datang, ${result.user.name}`)
-      navigate('/products', true)
+      navigate(homePath(result.user), true)
     } catch (error) {
       setServerError(error instanceof ApiError ? error.message : NETWORK_ERROR_MESSAGE)
       submitting.current = false

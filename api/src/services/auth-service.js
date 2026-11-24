@@ -92,11 +92,14 @@ function createAuthService(deps) {
     return { status: 200, body: { data: publicUser(user) } };
   }
 
-  // Reset Data (untuk sementara: mengosongkan hitungan gagal login milik user ini)
+  // Reset Data: kosongkan hitungan gagal login + kembalikan katalog produk ke 24 produk awal
   async function reset(authorizationHeader) {
     const user = await authenticate(authorizationHeader);
     if (!user) return fail(401, 'UNAUTHORIZED', MESSAGES.unauthorized);
     await deps.clearFailedAttempts(user.username);
+    // Keranjang & pesanan akun ini dikosongkan; katalog hanya untuk akun admin (pemilik toko)
+    if (deps.resetShopping) await deps.resetShopping(user.id);
+    if (deps.resetCatalog && user.role === 'admin') await deps.resetCatalog(user.id);
     return { status: 204 };
   }
 
@@ -146,7 +149,7 @@ function createAuthService(deps) {
     return { status: 201, body: { data: { user: publicUser(created) } } };
   }
 
-  return { login, me, reset, register };
+  return { login, me, reset, register, authenticate };
 }
 
 module.exports = { createAuthService, publicUser };

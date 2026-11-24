@@ -65,3 +65,8 @@ export function peekPrefillUsername(): string {
 export function clearPrefillUsername() {
   window.sessionStorage.removeItem(PREFILL_USERNAME_KEY)
 }
+
+// Halaman awal setelah login: admin ke Kelola Produk, pembeli ke Toko
+export function homePath(user: User | null = getStoredUser()): string {
+  return user?.role === 'admin' ? '/products' : '/shop'
+}
