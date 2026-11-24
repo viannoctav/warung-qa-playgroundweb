@@ -176,9 +176,6 @@ export default function LoginPage() {
               />
               Ingat saya
             </label>
-            <Link to="/forgot-password" id="login-forgot-link" data-testid="login-forgot-link">
-              Lupa password?
-            </Link>
           </div>
 
           <button

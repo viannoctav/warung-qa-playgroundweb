@@ -5,7 +5,6 @@ import CheckoutPage from './pages/CheckoutPage'
 import OrdersPage, { OrderDetailPage } from './pages/OrdersPage'
 import ShopPage from './pages/ShopPage'
 import ShopProductPage from './pages/ShopProductPage'
-import ComingSoonPage from './pages/ComingSoonPage'
 import LoginPage from './pages/LoginPage'
 import ProductFormPage from './pages/ProductFormPage'
 import ProductsPage from './pages/ProductsPage'
@@ -48,8 +47,6 @@ export default function App() {
     case '/register':
       // Sudah login lalu membuka /register → langsung ke halaman awal
       return getToken() ? <Redirect to={homePath()} /> : <RegisterPage />
-    case '/forgot-password':
-      return <ComingSoonPage title="Lupa password" pageId="forgot-password" />
     default:
       return (
         <main className="auth-page" id="not-found-page" data-testid="not-found-page">

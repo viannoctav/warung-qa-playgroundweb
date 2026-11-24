@@ -19,7 +19,6 @@ Konvensi: `{halaman}-{nama}-{jenis}`, huruf kecil, dipisah tanda hubung. Elemen 
 | Tombol Masuk | `login-submit-btn` | Disabled sampai username & password terisi |
 | Spinner loading | `login-submit-spinner` | Hanya ada saat loading |
 | Alert error dari server | `login-error-alert` | |
-| Link lupa password | `login-forgot-link` | Ke `/forgot-password` |
 | Link daftar | `login-register-link` | Ke `/register` |
 | Panel akun demo | `login-demo-panel` | |
 | Baris akun demo | `login-demo-account-{username}` | Contoh `login-demo-account-slow_user` |
@@ -215,12 +214,3 @@ Pesan error per field: `register-{field}-error`, dengan `{field}` = `fullname`, 
 | --- | --- |
 | Logo Warung QA (semua halaman) | `brand-logo` |
 | Toast sukses | `toast-success` |
-
-## Halaman sementara (`/forgot-password`)
-
-| Elemen | `data-testid` |
-| --- | --- |
-| Kontainer | `forgot-password-page` |
-| Judul | `forgot-password-title` |
-| Pesan | `coming-soon-message` |
-| Link kembali | `coming-soon-back-link` |
