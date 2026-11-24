@@ -8,6 +8,7 @@ export type User = {
 const TOKEN_KEY = 'wqa_token'
 const USER_KEY = 'wqa_user'
 const TOAST_KEY = 'wqa_toast'
+const PREFILL_USERNAME_KEY = 'wqa_prefill_username'
 
 // "Ingat saya" → localStorage (bertahan setelah browser ditutup).
 // Tidak dicentang → sessionStorage (hilang saat browser ditutup).
@@ -50,4 +51,17 @@ export function peekFlashToast(): string | null {
 
 export function clearFlashToast() {
   window.sessionStorage.removeItem(TOAST_KEY)
+}
+
+// Username yang diisi otomatis di halaman login setelah registrasi berhasil
+export function setPrefillUsername(username: string) {
+  window.sessionStorage.setItem(PREFILL_USERNAME_KEY, username)
+}
+
+export function peekPrefillUsername(): string {
+  return window.sessionStorage.getItem(PREFILL_USERNAME_KEY) ?? ''
+}
+
+export function clearPrefillUsername() {
+  window.sessionStorage.removeItem(PREFILL_USERNAME_KEY)
 }

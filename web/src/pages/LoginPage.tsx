@@ -1,7 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ApiError, NETWORK_ERROR_MESSAGE, login } from '../api'
-import { saveSession, setFlashToast } from '../auth'
+import { clearPrefillUsername, peekPrefillUsername, saveSession, setFlashToast } from '../auth'
+import AuthLayout from '../components/AuthLayout'
+import FlashToast from '../components/FlashToast'
 import { Link, navigate } from '../router'
 
 // Semua id dan teks di halaman ini mengikuti PRD Login + TESTIDS.md
@@ -33,7 +35,8 @@ function validatePassword(value: string): string | null {
 }
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('')
+  // Setelah registrasi berhasil, username baru langsung terisi
+  const [username, setUsername] = useState(peekPrefillUsername)
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -42,9 +45,21 @@ export default function LoginPage() {
   const [serverError, setServerError] = useState<string | null>(null)
   const submitting = useRef(false)
 
+  useEffect(() => {
+    clearPrefillUsername()
+  }, [])
+
   const usernameError = touched.username ? validateUsername(username) : null
   const passwordError = touched.password ? validatePassword(password) : null
   const canSubmit = username.trim() !== '' && password !== '' && !loading
+
+  // Klik akun demo: username & password langsung terisi
+  function fillDemoAccount(demoUsername: string) {
+    setUsername(demoUsername)
+    setPassword(DEMO_PASSWORD)
+    setTouched({ username: false, password: false })
+    setServerError(null)
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -70,12 +85,11 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="auth-page" id="login-page" data-testid="login-page">
-      <div className="auth-card">
-        <p className="brand">Warung QA</p>
+    <AuthLayout pageId="login-page">
         <h1 id="login-title" data-testid="login-title">
           Masuk ke Warung QA
         </h1>
+        <p className="form-intro">Pakai salah satu akun demo di bawah form, atau akun hasil registrasi.</p>
 
         {serverError && (
           <div className="alert alert-error" id="login-error-alert" data-testid="login-error-alert" role="alert">
@@ -188,13 +202,14 @@ export default function LoginPage() {
             Daftar
           </Link>
         </p>
-      </div>
 
       <section className="demo-panel" id="login-demo-panel" data-testid="login-demo-panel" aria-labelledby="login-demo-title">
-        <h2 id="login-demo-title">Akun Demo</h2>
-        <p>
-          Password semua akun: <code>{DEMO_PASSWORD}</code>
-        </p>
+        <div className="demo-panel-head">
+          <h2 id="login-demo-title">Akun demo</h2>
+          <p>
+            Password semua akun: <code>{DEMO_PASSWORD}</code>
+          </p>
+        </div>
         <ul>
           {DEMO_ACCOUNTS.map((account) => (
             <li
@@ -202,12 +217,23 @@ export default function LoginPage() {
               id={`login-demo-account-${account.username}`}
               data-testid={`login-demo-account-${account.username}`}
             >
-              <code>{account.username}</code>
-              <span>{account.note}</span>
+              <button
+                type="button"
+                className="demo-account"
+                id={`login-demo-fill-btn-${account.username}`}
+                data-testid={`login-demo-fill-btn-${account.username}`}
+                disabled={loading}
+                onClick={() => fillDemoAccount(account.username)}
+              >
+                <code>{account.username}</code>
+                <span>{account.note}</span>
+              </button>
             </li>
           ))}
         </ul>
       </section>
-    </main>
+
+      <FlashToast />
+    </AuthLayout>
   )
 }

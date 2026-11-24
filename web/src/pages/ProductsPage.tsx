@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { ApiError, fetchMe } from '../api'
 import type { User } from '../auth'
-import { clearFlashToast, clearSession, getStoredUser, getToken, peekFlashToast } from '../auth'
+import { clearSession, getStoredUser, getToken } from '../auth'
+import FlashToast from '../components/FlashToast'
 import { navigate } from '../router'
 
 // Halaman sementara. Tabel produk lengkap dibangun di Fase 3.
 export default function ProductsPage() {
   const [user, setUser] = useState<User | null>(getStoredUser)
-  const [toast, setToast] = useState<string | null>(peekFlashToast)
 
   // Pastikan sesi masih valid lewat GET /api/v1/me
   useEffect(() => {
@@ -35,14 +35,6 @@ export default function ProductsPage() {
     }
   }, [])
 
-  // Toast "Selamat datang" tampil 3 detik
-  useEffect(() => {
-    if (!toast) return
-    clearFlashToast()
-    const timer = window.setTimeout(() => setToast(null), 3000)
-    return () => window.clearTimeout(timer)
-  }, [toast])
-
   function handleLogout() {
     clearSession()
     navigate('/login', true)
@@ -51,7 +43,15 @@ export default function ProductsPage() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <span className="brand">Warung QA</span>
+        <img
+          src="/logo-warung-qa-dark.png"
+          alt="Warung QA"
+          className="header-logo"
+          id="brand-logo"
+          data-testid="brand-logo"
+          width={640}
+          height={570}
+        />
         <div className="header-user">
           {user && (
             <span id="header-username" data-testid="header-username">
@@ -82,11 +82,7 @@ export default function ProductsPage() {
         <p className="muted">Halaman produk sedang dibangun (Fase 3).</p>
       </main>
 
-      {toast && (
-        <div className="toast toast-success" id="toast-success" data-testid="toast-success" role="status">
-          {toast}
-        </div>
-      )}
+      <FlashToast />
     </div>
   )
 }

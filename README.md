@@ -24,6 +24,7 @@ Password semua akun: `Warung123!`
 | Method | Endpoint | Keterangan |
 | --- | --- | --- |
 | GET | `/health` | Cek server hidup |
+| POST | `/api/v1/auth/register` | Buat akun baru (aktif 24 jam). Lihat PRD Registrasi untuk body |
 | POST | `/api/v1/auth/login` | Body `{ "username", "password", "remember" }` |
 | GET | `/api/v1/me` | Header `Authorization: Bearer <token>` |
 | POST | `/api/v1/reset` | Mengosongkan hitungan gagal login (butuh token) |
@@ -36,7 +37,7 @@ Butuh Node.js LTS. Buat file `api/.env` berisi `DATABASE_URL` (dari Neon) dan `J
 # Terminal 1: API
 cd api
 npm install
-npm run db:setup   # sekali saja: buat tabel + akun demo
+npm run db:setup   # buat/perbarui tabel + akun demo (aman diulang)
 npm run dev        # http://localhost:3000
 
 # Terminal 2: Web

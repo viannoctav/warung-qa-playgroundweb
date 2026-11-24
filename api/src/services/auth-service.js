@@ -1,4 +1,5 @@
 const config = require('../config');
+const { validateRegister, MESSAGES: REGISTER_MESSAGES } = require('../validation/register');
 
 const { MESSAGES } = config;
 
@@ -99,7 +100,53 @@ function createAuthService(deps) {
     return { status: 204 };
   }
 
-  return { login, me, reset };
+  function conflict(taken) {
+    const fields = {};
+    if (taken.username) fields.username = REGISTER_MESSAGES.usernameTaken;
+    if (taken.email) fields.email = REGISTER_MESSAGES.emailTaken;
+    return fail(409, 'ALREADY_EXISTS', REGISTER_MESSAGES.alreadyExists, fields);
+  }
+
+  async function register(body) {
+    const now = deps.now ? deps.now() : new Date();
+    const { errors, value } = validateRegister(body, now);
+    if (Object.keys(errors).length > 0) {
+      return fail(400, 'VALIDATION_ERROR', REGISTER_MESSAGES.formInvalid, errors);
+    }
+
+    // Akun registrasi berumur > 24 jam dihapus dulu, supaya username/email-nya bisa dipakai lagi
+    await deps.deleteExpiredUsers();
+
+    const taken = await deps.findTakenIdentifiers(value.username, value.email);
+    if (taken.username || taken.email) return conflict(taken);
+
+    const passwordHash = await deps.hashPassword(value.password);
+    const newUser = {
+      username: value.username,
+      name: value.fullName,
+      passwordHash,
+      email: value.email,
+      phone: value.phone,
+      birthDate: value.birthDate,
+      gender: value.gender,
+    };
+
+    let created;
+    try {
+      created = await deps.createUser(newUser);
+    } catch (err) {
+      // Dua request bersamaan dengan data yang sama: yang kedua ditolak database (unique)
+      if (err && err.code === '23505') {
+        const again = await deps.findTakenIdentifiers(value.username, value.email);
+        return conflict(again.username || again.email ? again : { username: true });
+      }
+      throw err;
+    }
+
+    return { status: 201, body: { data: { user: publicUser(created) } } };
+  }
+
+  return { login, me, reset, register };
 }
 
 module.exports = { createAuthService, publicUser };

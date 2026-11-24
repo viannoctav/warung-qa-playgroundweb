@@ -1,78 +1,140 @@
-/* ---------- Layout halaman login & halaman sederhana ---------- */
-.auth-page {
+/* ================= Logo ================= */
+.brand-logo {
+  display: block;
+  width: min(72%, 360px);
+  height: auto;
+}
+
+.header-logo {
+  display: block;
+  width: auto;
+  height: 44px;
+}
+
+.card-logo {
+  display: block;
+  width: 112px;
+  height: auto;
+}
+
+/* ================= Layout split (Login & Registrasi) ================= */
+.auth-split {
   min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(380px, 5fr) 7fr;
+}
+
+.brand-panel {
+  position: sticky;
+  top: 0;
+  height: 100vh;
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  gap: 24px;
-  padding: 48px 16px;
+  padding: 48px;
+  background:
+    radial-gradient(70% 55% at 50% 45%, rgb(255 140 26 / 9%), transparent 70%),
+    var(--panel);
+  border-right: 1px solid var(--line);
+  overflow: hidden;
 }
 
-.auth-card,
-.demo-panel {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 32px;
+.form-panel {
+  display: flex;
+  justify-content: center;
+  padding: 64px 32px;
+}
+
+.form-panel-inner {
   width: 100%;
+  max-width: 460px;
 }
 
-.auth-card {
-  max-width: 420px;
+.form-panel-inner h1 {
+  margin-bottom: 8px;
 }
 
-.demo-panel {
-  max-width: 320px;
-  padding: 24px;
+.form-intro,
+.note {
+  margin: 0 0 28px;
+  color: var(--muted);
 }
 
-.brand {
-  margin: 0 0 4px;
-  font-weight: 700;
-  color: var(--color-primary);
-  letter-spacing: 0.02em;
-}
-
-.muted {
-  color: var(--color-muted);
+.note {
+  padding: 10px 14px;
+  border-left: 2px solid var(--warn);
+  background: rgb(242 193 78 / 8%);
+  border-radius: 0 6px 6px 0;
+  color: #d9c690;
+  font-size: 0.92rem;
 }
 
 .auth-footer {
   margin: 24px 0 0;
-  text-align: center;
-  color: var(--color-muted);
+  color: var(--muted);
 }
 
-/* ---------- Form ---------- */
+/* ================= Form ================= */
 .form {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.field label {
+.field > label,
+fieldset.field legend {
   display: block;
   margin-bottom: 6px;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #c9d0e0;
 }
 
 .field input[type='text'],
-.field input[type='password'] {
+.field input[type='password'],
+.field input[type='email'],
+.field input[type='tel'],
+.field input[type='date'] {
   width: 100%;
-  padding: 10px 12px;
+  height: 44px;
+  padding: 0 14px;
   font: inherit;
-  border: 1px solid var(--color-border);
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.field input::placeholder {
+  color: #5f6a85;
+}
+
+.field input:hover {
+  border-color: var(--line-strong);
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px rgb(164 147 255 / 20%);
+}
+
+.field input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+  cursor: pointer;
 }
 
 .field input[aria-invalid='true'] {
-  border-color: var(--color-error);
+  border-color: var(--fail);
+}
+
+.field input[aria-invalid='true']:focus {
+  box-shadow: 0 0 0 3px rgb(255 107 114 / 18%);
 }
 
 .field input[readonly] {
-  background: #f3f1ec;
+  opacity: 0.6;
 }
 
 .field-message {
@@ -81,8 +143,14 @@
 
 .field-error {
   margin: 4px 0 0;
-  color: var(--color-error);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  color: var(--fail);
+}
+
+.hint {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 .input-with-button {
@@ -101,6 +169,56 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  margin-bottom: 12px;
+}
+
+fieldset.field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.choice-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Radio tampil sebagai pilihan berbentuk tombol; input aslinya tetap ada untuk automation */
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.choice:hover {
+  border-color: var(--line-strong);
+}
+
+.choice:has(input:checked) {
+  border-color: var(--pass);
+  background: rgb(66 211 146 / 10%);
+}
+
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.choice input,
+.checkbox input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--pass);
 }
 
 .checkbox {
@@ -108,65 +226,98 @@
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  font-size: 0.92rem;
 }
 
-.checkbox input {
-  width: 18px;
-  height: 18px;
+.strength {
+  font-family: var(--font-mono);
+  font-weight: 600;
 }
 
-/* ---------- Tombol ---------- */
+.strength-lemah {
+  color: var(--fail);
+}
+
+.strength-sedang {
+  color: var(--warn);
+}
+
+.strength-kuat {
+  color: var(--pass);
+}
+
+/* ================= Tombol ================= */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 16px;
+  height: 44px;
+  padding: 0 18px;
   font: inherit;
   font-weight: 600;
   border-radius: 8px;
   border: 1px solid transparent;
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .btn:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
 }
 
 .btn-primary {
-  background: var(--color-primary);
-  color: var(--color-primary-text);
+  background: var(--pass);
+  color: var(--pass-ink);
 }
 
 .btn-primary:not(:disabled):hover {
-  background: var(--color-primary-hover);
+  background: #5fe0a6;
 }
 
-.btn-secondary {
-  background: var(--color-surface);
-  border-color: var(--color-border);
-  color: var(--color-text);
+.btn-primary:disabled {
+  background: #22352f;
+  color: #5f7d70;
+}
+
+.btn-secondary,
+.btn-ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.btn-secondary:not(:disabled):hover,
+.btn-ghost:not(:disabled):hover {
+  border-color: var(--line-strong);
+  background: var(--raised);
 }
 
 .btn-ghost {
-  background: transparent;
-  border-color: var(--color-border);
-  color: var(--color-text);
   font-weight: 500;
   white-space: nowrap;
+  font-size: 0.9rem;
 }
 
 .btn-block {
   width: 100%;
+}
+
+.button-row {
+  display: flex;
+  gap: 12px;
   margin-top: 12px;
+}
+
+.button-row .btn-primary {
+  flex: 1;
 }
 
 .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgb(255 255 255 / 40%);
-  border-top-color: #fff;
+  border: 2px solid rgb(5 42 26 / 35%);
+  border-top-color: var(--pass-ink);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -177,65 +328,134 @@
   }
 }
 
-/* ---------- Alert & toast ---------- */
+/* ================= Alert & toast ================= */
 .alert {
   padding: 12px 14px;
   border-radius: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  font-size: 0.95rem;
 }
 
 .alert-error {
-  background: var(--color-error-bg);
-  color: var(--color-error);
-  border: 1px solid #f5c2bd;
+  background: var(--fail-bg);
+  color: #ffb3b7;
+  border: 1px solid rgb(255 107 114 / 35%);
 }
 
 .toast {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
-  max-width: calc(100vw - 32px);
+  right: 20px;
+  bottom: 20px;
+  z-index: 10;
+  max-width: calc(100vw - 40px);
   padding: 12px 16px;
   border-radius: 8px;
-  color: #fff;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+  font-weight: 500;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 45%);
+  animation: toast-in 0.25s ease-out;
 }
 
 .toast-success {
-  background: var(--color-success);
+  background: var(--pass);
+  color: var(--pass-ink);
 }
 
-/* ---------- Panel akun demo ---------- */
-.demo-panel p {
-  margin: 0 0 12px;
-  color: var(--color-muted);
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ================= Panel akun demo ================= */
+.demo-panel {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.demo-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-bottom: 12px;
+}
+
+.demo-panel-head p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
 }
 
 .demo-panel ul {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
 }
 
-.demo-panel li {
+.demo-account {
+  width: 100%;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 2px;
+  padding: 10px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
 }
 
-.demo-panel li code {
-  align-self: flex-start;
+.demo-account:not(:disabled):hover {
+  border-color: var(--pass);
+  background: var(--raised);
 }
 
-.demo-panel li span {
-  font-size: 0.9rem;
-  color: var(--color-muted);
+.demo-account code {
+  padding: 0;
+  background: none;
+  font-size: 0.85rem;
 }
 
-/* ---------- Halaman setelah login ---------- */
+.demo-account span {
+  font-size: 0.82rem;
+}
+
+/* ================= Halaman sederhana (sementara / 404) ================= */
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 32px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.auth-card h1 {
+  margin: 20px 0 8px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ================= Setelah login ================= */
 .app-shell {
   min-height: 100vh;
 }
@@ -245,46 +465,78 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 24px;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.app-header .brand {
-  margin: 0;
+  height: 64px;
+  padding: 0 32px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
 }
 
 .header-user {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  color: #c9d0e0;
+}
+
+.header-user .btn {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 0.9rem;
 }
 
 .badge {
   margin-left: 8px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #efe9df;
-  font-size: 0.8rem;
-  font-weight: 600;
+  border: 1px solid rgb(164 147 255 / 45%);
+  color: var(--focus);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
 }
 
 .page {
-  max-width: 1080px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 32px 24px;
+  padding: 48px 32px;
+}
+
+.page h1 {
+  margin-bottom: 8px;
+}
+
+/* ================= Responsif ================= */
+@media (max-width: 960px) {
+  .auth-split {
+    grid-template-columns: 1fr;
+  }
+
+  .brand-panel {
+    position: static;
+    height: auto;
+    padding: 28px 20px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .brand-logo {
+    width: 140px;
+  }
+
+  .form-panel {
+    padding: 32px 20px 48px;
+  }
 }
 
 @media (max-width: 480px) {
-  .auth-page {
-    padding: 24px 12px;
-  }
-
-  .auth-card {
-    padding: 24px 20px;
+  h1 {
+    font-size: 1.5rem;
   }
 
   .app-header {
-    padding: 12px 16px;
+    padding: 0 16px;
+  }
+
+  .page {
+    padding: 32px 16px;
   }
 }

@@ -1,5 +1,5 @@
-// Membuat tabel dan mengisi akun demo di database Neon.
-// Jalankan dari folder api: npm run db:setup
+// Membuat/memperbarui tabel dan mengisi akun demo di database Neon.
+// Aman dijalankan berulang kali. Jalankan dari folder api: npm run db:setup
 require('dotenv').config({ quiet: true });
 
 const bcrypt = require('bcryptjs');
@@ -21,6 +21,15 @@ async function main() {
     )
   `;
 
+  // Kolom tambahan untuk Registrasi (Fase 2)
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT false`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date DATE`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS gender TEXT`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users (email)`;
+  await sql`CREATE INDEX IF NOT EXISTS users_created_at ON users (created_at) WHERE NOT is_demo`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS login_attempts (
       id SERIAL PRIMARY KEY,
@@ -37,13 +46,15 @@ async function main() {
   const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
   for (const user of DEMO_USERS) {
     await sql`
-      INSERT INTO users (username, name, password_hash, role, behavior)
-      VALUES (${user.username}, ${user.name}, ${hash}, ${user.role}, ${user.behavior})
+      INSERT INTO users (username, name, password_hash, role, behavior, is_demo, email)
+      VALUES (${user.username}, ${user.name}, ${hash}, ${user.role}, ${user.behavior}, true, ${user.email})
       ON CONFLICT (username) DO UPDATE SET
         name = EXCLUDED.name,
         password_hash = EXCLUDED.password_hash,
         role = EXCLUDED.role,
-        behavior = EXCLUDED.behavior
+        behavior = EXCLUDED.behavior,
+        is_demo = true,
+        email = EXCLUDED.email
     `;
   }
 

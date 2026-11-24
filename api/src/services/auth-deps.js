@@ -14,6 +14,7 @@ function getSecret() {
 module.exports = {
   ...users,
   comparePassword: (password, hash) => bcrypt.compare(password, hash),
+  hashPassword: (password) => bcrypt.hash(password, 10),
   signToken: (payload, expiresInSeconds) => jwt.sign(payload, getSecret(), { expiresIn: expiresInSeconds }),
   verifyToken: (token) => jwt.verify(token, getSecret()),
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),

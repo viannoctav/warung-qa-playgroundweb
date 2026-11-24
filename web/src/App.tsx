@@ -3,6 +3,7 @@ import { getToken } from './auth'
 import ComingSoonPage from './pages/ComingSoonPage'
 import LoginPage from './pages/LoginPage'
 import ProductsPage from './pages/ProductsPage'
+import RegisterPage from './pages/RegisterPage'
 import { Link, Redirect, usePath } from './router'
 
 export default function App() {
@@ -17,7 +18,8 @@ export default function App() {
     case '/products':
       return <ProductsPage />
     case '/register':
-      return <ComingSoonPage title="Registrasi" pageId="register" />
+      // Sudah login lalu membuka /register → langsung ke /products
+      return getToken() ? <Redirect to="/products" /> : <RegisterPage />
     case '/forgot-password':
       return <ComingSoonPage title="Lupa password" pageId="forgot-password" />
     default:

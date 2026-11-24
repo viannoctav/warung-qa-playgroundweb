@@ -75,3 +75,22 @@ export async function fetchMe(token: string) {
   const result = await request<{ data: User }>('/me', { token })
   return result.data
 }
+
+export type RegisterPayload = {
+  fullName: string
+  username: string
+  email: string
+  phone: string
+  birthDate: string
+  gender: string
+  password: string
+  confirmPassword: string
+}
+
+export async function register(payload: RegisterPayload) {
+  const result = await request<{ data: { user: User } }>('/auth/register', {
+    method: 'POST',
+    body: payload,
+  })
+  return result.data.user
+}

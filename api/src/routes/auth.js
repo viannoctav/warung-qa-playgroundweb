@@ -10,6 +10,10 @@ router.post('/auth/login', async (req, res) => {
   sendResult(res, await auth.login(req.body));
 });
 
+router.post('/auth/register', async (req, res) => {
+  sendResult(res, await auth.register(req.body));
+});
+
 router.get('/me', async (req, res) => {
   sendResult(res, await auth.me(req.get('authorization')));
 });
