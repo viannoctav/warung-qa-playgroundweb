@@ -1,3 +1,5 @@
+import { formatRating } from '../validation/review'
+import { isBugUser } from '../bugs'
 import { useEffect, useRef, useState } from 'react'
 import { addToCart, fetchCart, fetchStoreProducts } from '../api'
 import type { Cart, ProductListResult } from '../api'
@@ -284,10 +286,15 @@ function ShopContent({ token, reloadSignal }: { token: string; reloadSignal: num
                 <span className="product-card-name" id={`shop-card-name-${product.id}`} data-testid={`shop-card-name-${product.id}`}>
                   {product.name}
                 </span>
+                {(product.ratingCount ?? 0) > 0 && (
+                  <span className="product-card-rating" id={`shop-card-rating-${product.id}`} data-testid={`shop-card-rating-${product.id}`}>
+                    <span aria-hidden="true">★</span> {formatRating(product.ratingAverage ?? 0)} ({product.ratingCount})
+                  </span>
+                )}
               </Link>
               <div className="product-card-foot">
                 <span className="product-card-price" id={`shop-card-price-${product.id}`} data-testid={`shop-card-price-${product.id}`}>
-                  {formatRupiah(product.price)}
+                  {isBugUser() ? `Rp ${product.price}` : formatRupiah(product.price)}
                 </span>
                 <span
                   className={`product-card-stock${soldOut ? ' is-sold-out' : ''}`}

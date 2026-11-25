@@ -113,6 +113,8 @@ export type Product = {
   isActive: boolean
   description: string
   imageUrl: string | null
+  ratingAverage?: number | null
+  ratingCount?: number
   createdAt: string
   updatedAt: string
 }
@@ -522,4 +524,121 @@ export function fetchStockMovements(token: string, query: { cursor: string | nul
   if (query.productId) params.set('productId', query.productId)
   if (query.reason) params.set('reason', query.reason)
   return request<{ data: StockMovement[]; meta: { total: number; nextCursor: string | null } }>(`/stock-movements?${params.toString()}`, { token })
+}
+
+// ---------- Ulasan produk ----------
+
+export type ReviewStatus = 'menunggu' | 'disetujui' | 'ditolak'
+export type Review = {
+  id: number
+  productId: number
+  productName: string
+  author: string
+  rating: number
+  body: string
+  status: ReviewStatus
+  rejectReason: string | null
+  helpfulCount: number
+  helpfulByMe: boolean
+  mine?: boolean
+  photos: { id: number; url: string }[]
+  createdAt: string
+  updatedAt: string
+}
+export type ReviewInput = { rating: number; body: string }
+export type ReviewListMeta = {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  count: number
+  average: number | null
+  distribution: Record<'1' | '2' | '3' | '4' | '5', number>
+  mine: Review | null
+  canReview: boolean
+}
+
+// URL foto ulasan dari API sudah diawali /api/v1; fetchImageUrl butuh path setelahnya
+export const reviewPhotoPath = (url: string) => url.replace(/^\/api\/v1/, '')
+
+export function fetchProductReviews(token: string, productId: number, query: { rating: string; sort: string; page: number; limit: number }) {
+  const params = new URLSearchParams({ sort: query.sort, page: String(query.page), limit: String(query.limit) })
+  if (query.rating) params.set('rating', query.rating)
+  return request<{ data: Review[]; meta: ReviewListMeta }>(`/store/products/${productId}/reviews?${params.toString()}`, { token })
+}
+
+export async function fetchMyReviews(token: string) {
+  const result = await request<{ data: Review[] }>('/reviews/mine', { token })
+  return result.data
+}
+
+export async function createReview(token: string, productId: number, input: ReviewInput) {
+  const result = await request<{ data: Review }>(`/store/products/${productId}/reviews`, { method: 'POST', body: input, token })
+  return result.data
+}
+
+export async function updateReview(token: string, id: number, input: ReviewInput) {
+  const result = await request<{ data: Review }>(`/reviews/${id}`, { method: 'PATCH', body: input, token })
+  return result.data
+}
+
+export async function uploadReviewPhoto(token: string, id: number, file: File) {
+  const result = await request<{ data: Review }>(`/reviews/${id}/photos`, {
+    method: 'POST',
+    file,
+    token,
+    headers: { 'X-File-Name': encodeURIComponent(file.name) },
+  })
+  return result.data
+}
+
+export async function deleteReviewPhoto(token: string, id: number, photoId: number) {
+  const result = await request<{ data: Review }>(`/reviews/${id}/photos/${photoId}`, { method: 'DELETE', token })
+  return result.data
+}
+
+export async function toggleReviewHelpful(token: string, id: number) {
+  const result = await request<{ data: { helpful: boolean; helpfulCount: number } }>(`/reviews/${id}/helpful`, { method: 'POST', token })
+  return result.data
+}
+
+export type ReviewCounts = { all: number; menunggu: number; disetujui: number; ditolak: number }
+
+export function fetchStoreReviews(token: string, query: { status: string; page: number; limit: number }) {
+  const params = new URLSearchParams({ page: String(query.page), limit: String(query.limit) })
+  if (query.status) params.set('status', query.status)
+  return request<{ data: Review[]; meta: ProductListResult['meta'] & { counts: ReviewCounts } }>(`/admin/reviews?${params.toString()}`, { token })
+}
+
+export async function moderateReview(token: string, id: number, input: { status: 'disetujui' } | { status: 'ditolak'; reason: string }) {
+  const result = await request<{ data: Review }>(`/admin/reviews/${id}`, { method: 'PATCH', body: input, token })
+  return result.data
+}
+
+// ---------- Notifikasi ----------
+
+export type AppNotification = {
+  id: number
+  type: string
+  title: string
+  body: string
+  link: string
+  isRead: boolean
+  createdAt: string
+}
+
+export function fetchNotifications(token: string, query: { unread?: boolean; page?: number; limit?: number } = {}) {
+  const params = new URLSearchParams({ page: String(query.page ?? 1), limit: String(query.limit ?? 10) })
+  if (query.unread) params.set('unread', 'true')
+  return request<{ data: AppNotification[]; meta: ProductListResult['meta'] & { unread: number } }>(`/notifications?${params.toString()}`, { token })
+}
+
+export async function markNotificationRead(token: string, id: number) {
+  const result = await request<{ data: AppNotification }>(`/notifications/${id}/read`, { method: 'POST', token })
+  return result.data
+}
+
+export async function markAllNotificationsRead(token: string) {
+  const result = await request<{ data: { updated: number } }>('/notifications/read-all', { method: 'POST', token })
+  return result.data
 }

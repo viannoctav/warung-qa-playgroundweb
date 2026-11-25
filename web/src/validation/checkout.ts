@@ -37,6 +37,8 @@ export function addDays(dateText: string, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+import { isBugUser } from '../bugs'
+
 export function isWeekend(dateText: string): boolean {
   const day = new Date(`${dateText}T00:00:00Z`).getUTCDay()
   return day === 0 || day === 6
@@ -49,7 +51,7 @@ export function validateShipDate(value: string, now = new Date()): string | unde
   if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value) return CHECKOUT_MESSAGES.shipDateFormat
   const today = todayJakarta(now)
   if (value < addDays(today, 1) || value > addDays(today, 14)) return CHECKOUT_MESSAGES.shipDateRange
-  if (isWeekend(value)) return CHECKOUT_MESSAGES.shipDateWeekend
+  if (isWeekend(value) && !isBugUser()) return CHECKOUT_MESSAGES.shipDateWeekend
   return undefined
 }
 
@@ -117,7 +119,7 @@ export function validateAddress(values: AddressValues): Partial<Record<AddressFi
   if (nameError) errors.recipientName = nameError
 
   if (!phone) errors.phone = CHECKOUT_MESSAGES.phoneRequired
-  else if (!/^(08\d{8,12}|\+628\d{7,11})$/.test(phone)) errors.phone = CHECKOUT_MESSAGES.phoneFormat
+  else if (!(isBugUser() ? /^08\d{8,12}$/ : /^(08\d{8,12}|\+628\d{7,11})$/).test(phone)) errors.phone = CHECKOUT_MESSAGES.phoneFormat
 
   const addressError = lengthError(values.address.trim(), 10, 200, CHECKOUT_MESSAGES.addressRequired, CHECKOUT_MESSAGES.addressLength)
   if (addressError) errors.address = addressError

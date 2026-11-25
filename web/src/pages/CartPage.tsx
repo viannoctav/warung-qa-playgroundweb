@@ -1,3 +1,4 @@
+import { isBugUser } from '../bugs'
 import { useCallback, useEffect, useState } from 'react'
 import { clearCart, fetchCart, removeCartItem, updateCartItem } from '../api'
 import type { Cart, CartItem } from '../api'
@@ -15,7 +16,7 @@ import { formatRupiah } from '../validation/product'
 function CartLine({ item, token, onCart, onError }: {
   item: CartItem
   token: string
-  onCart: (cart: Cart) => void
+  onCart: (cart: Cart, announce?: boolean) => void
   onError: (productId: number, message: string | null) => void
 }) {
   const { product } = item
@@ -51,7 +52,8 @@ function CartLine({ item, token, onCart, onError }: {
   async function remove() {
     setBusy(true)
     try {
-      onCart(await removeCartItem(token, id))
+      // bug_user: angka keranjang di header tidak ikut berubah
+      onCart(await removeCartItem(token, id), !isBugUser())
       showToast(`${product.name} dihapus dari keranjang`)
     } catch (err) {
       if (!handleUnauthorized(err)) onError(id, errorMessage(err))
@@ -75,6 +77,11 @@ function CartLine({ item, token, onCart, onError }: {
         <Link to={`/shop/${id}`} className="cart-line-name" id={`cart-item-name-${id}`} data-testid={`cart-item-name-${id}`}>
           {product.name}
         </Link>
+        {isBugUser() && (
+          <span className="sr-only" data-testid={`cart-item-name-${id}`}>
+            {product.name}
+          </span>
+        )}
         <span className="muted" id={`cart-item-price-${id}`} data-testid={`cart-item-price-${id}`}>
           {formatRupiah(product.price)}
         </span>
@@ -125,9 +132,9 @@ function CartContent({ token, reloadSignal }: { token: string; reloadSignal: num
   // Stok berubah (dibeli akun lain / diubah admin) langsung terlihat di keranjang
   useLiveRefresh(() => setRefreshTick((n) => n + 1))
 
-  const applyCart = useCallback((next: Cart) => {
+  const applyCart = useCallback((next: Cart, announce = true) => {
     setCart(next)
-    announceCartCount(next.itemCount)
+    if (announce) announceCartCount(next.itemCount)
   }, [])
 
   useEffect(() => {
@@ -174,7 +181,7 @@ function CartContent({ token, reloadSignal }: { token: string; reloadSignal: num
         {cart && cart.items.length > 0 && (
           <button
             type="button"
-            className="btn btn-ghost btn-ghost-danger"
+            className={`btn btn-ghost btn-ghost-danger${isBugUser() ? ' no-focus-ring' : ''}`}
             id="cart-clear-btn"
             data-testid="cart-clear-btn"
             disabled={clearing}

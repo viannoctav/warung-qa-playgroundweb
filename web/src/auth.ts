@@ -38,6 +38,21 @@ export function clearSession() {
     storage.removeItem(TOKEN_KEY)
     storage.removeItem(USER_KEY)
   }
+  window.sessionStorage.removeItem(LEFTOVER_KEY)
+}
+
+// Keluar versi bug_user: sesi dihapus dari tampilan login, tapi token lama masih tersimpan
+// sehingga halaman yang dibuka lewat tombol Back tetap bisa dipakai.
+const LEFTOVER_KEY = 'wqa_last_session'
+
+export function logoutKeepingLeftover() {
+  const token = getToken()
+  clearSession()
+  if (token) window.sessionStorage.setItem(LEFTOVER_KEY, token)
+}
+
+export function getShellToken(): string | null {
+  return getToken() ?? window.sessionStorage.getItem(LEFTOVER_KEY)
 }
 
 // Pesan toast yang dibawa ke halaman berikutnya (misalnya "Selamat datang, ...")

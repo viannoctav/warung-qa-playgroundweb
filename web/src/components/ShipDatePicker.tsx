@@ -1,3 +1,4 @@
+import { isBugUser } from '../bugs'
 import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { addDays, formatDateLong, isWeekend, todayJakarta, validateShipDate } from '../validation/checkout'
@@ -33,7 +34,7 @@ export default function ShipDatePicker({ value, error, onChange }: Props) {
     gridRef.current?.querySelector<HTMLButtonElement>(`[data-date="${focusDate}"]`)?.focus()
   }, [open, focusDate, month])
 
-  const disabled = (d: string) => d < minDate || d > maxDate || isWeekend(d)
+  const disabled = (d: string) => d < minDate || d > maxDate || (isWeekend(d) && !isBugUser())
 
   // Sel kalender: kosong di awal supaya tanggal 1 jatuh di kolom hari yang benar (Senin pertama)
   const first = new Date(`${month}T00:00:00Z`)

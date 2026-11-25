@@ -55,7 +55,7 @@ const spec = {
     description:
       'API playground untuk latihan API testing. Login dulu lewat `POST /api/v1/auth/login` (contoh: standard_user / Warung123!), ' +
       'salin `token`, lalu klik **Authorize** dan tempel token-nya.\n\n' +
-      'Akun demo: `standard_user` (pembeli di toko admin_user), `admin_user` (kelola produk + belanja di tokonya), `locked_user` (423), `slow_user` (5 detik), `error_user` (500). ' +
+      'Akun demo: `standard_user` (pembeli di toko admin_user), `admin_user` (kelola produk + belanja di tokonya), `locked_user` (423), `slow_user` (5 detik), `error_user` (500), `bug_user` (pembeli yang menyimpan bug tersembunyi, temukan sendiri). ' +
       'Akun hasil registrasi selalu ber-role user (pembeli di toko admin_user) dan aktif 24 jam. Admin hanya admin_user.\n\n' +
       'Voucher latihan: `HEMAT10`, `WARUNG25K`, `ONGKIRGRATIS`, `FLASH15`, `KADALUARSA`. Gift card: `GIFT-7788-WQA`, `GIFT-5000-WQA`. PIN WarungPay: `123456`.',
   },
@@ -111,6 +111,8 @@ const spec = {
           isActive: { type: 'boolean', example: true },
           description: { type: 'string' },
           imageUrl: { type: 'string', nullable: true, example: '/api/v1/products/1/image?v=1764000000000' },
+          ratingAverage: { type: 'number', nullable: true, example: 4.5, description: 'Hanya di katalog toko: rata-rata ulasan yang disetujui' },
+          ratingCount: { type: 'integer', example: 2, description: 'Hanya di katalog toko: jumlah ulasan yang disetujui' },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
         },
@@ -1032,6 +1034,227 @@ const spec = {
     },
   },
 };
+
+
+// ---------- Fase 6: ulasan produk & notifikasi ----------
+const reviewIdParam = { name: 'id', in: 'path', required: true, schema: { type: 'integer' }, example: 1 };
+const reviewNotFound = errorResponse('Tidak ada / bukan milik akun ini', 'NOT_FOUND', 'Ulasan tidak ditemukan');
+const reviewBody = {
+  required: true,
+  content: {
+    'application/json': {
+      schema: {
+        type: 'object',
+        required: ['rating', 'body'],
+        properties: {
+          rating: { type: 'integer', minimum: 1, maximum: 5, example: 5 },
+          body: { type: 'string', minLength: 10, maxLength: 500, example: 'Kopinya wangi dan segar.' },
+        },
+      },
+    },
+  },
+};
+const reviewInvalid = errorResponse('Data ulasan tidak valid', 'VALIDATION_ERROR', 'Pilih rating 1–5 bintang', {
+  rating: 'Pilih rating 1–5 bintang',
+  body: 'Ulasan minimal 10 karakter',
+});
+const reviewOk = (description) => ({ description, content: { 'application/json': { schema: { type: 'object', properties: { data: { $ref: '#/components/schemas/Review' } } } } } });
+const pageParams = (limits, def) => [
+  { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
+  { name: 'limit', in: 'query', schema: { type: 'integer', enum: limits, default: def } },
+];
+
+spec.tags.push(
+  { name: 'Reviews', description: 'Ulasan produk: tulis (setelah pesanan Selesai), foto, Membantu' },
+  { name: 'Admin Reviews', description: 'Moderasi ulasan (khusus admin)' },
+  { name: 'Notifications', description: 'Notifikasi lonceng (cek berkala dari web tiap 5 detik)' },
+);
+
+Object.assign(spec.components.schemas, {
+  Review: {
+    type: 'object',
+    properties: {
+      id: { type: 'integer', example: 1 },
+      productId: { type: 'integer', example: 3 },
+      productName: { type: 'string', example: 'Keripik Singkong Balado 200 g' },
+      author: { type: 'string', example: 'standard_user' },
+      rating: { type: 'integer', example: 4 },
+      body: { type: 'string', example: 'Renyah, bumbunya pas.' },
+      status: { type: 'string', enum: ['menunggu', 'disetujui', 'ditolak'] },
+      rejectReason: { type: 'string', nullable: true },
+      helpfulCount: { type: 'integer', example: 0 },
+      helpfulByMe: { type: 'boolean' },
+      mine: { type: 'boolean' },
+      photos: { type: 'array', items: { type: 'object', properties: { id: { type: 'integer' }, url: { type: 'string', example: '/api/v1/reviews/1/photos/1' } } } },
+      createdAt: { type: 'string', format: 'date-time' },
+      updatedAt: { type: 'string', format: 'date-time' },
+    },
+  },
+  Notification: {
+    type: 'object',
+    properties: {
+      id: { type: 'integer', example: 12 },
+      type: { type: 'string', enum: ['order_new', 'order_shipped', 'order_done', 'order_cancelled', 'stock_low', 'review_new', 'review_approved', 'review_rejected'] },
+      title: { type: 'string', example: 'Pesanan dikirim' },
+      body: { type: 'string', example: 'WQA-20261125-K7Q2ZP dikirim lewat Express (1–2 hari), resi JNE1234567890.' },
+      link: { type: 'string', example: '/orders/WQA-20261125-K7Q2ZP' },
+      isRead: { type: 'boolean' },
+      createdAt: { type: 'string', format: 'date-time' },
+    },
+  },
+});
+
+Object.assign(spec.paths, {
+  '/api/v1/store/products/{id}/reviews': {
+    get: {
+      tags: ['Reviews'],
+      summary: 'Ulasan yang disetujui + statistik bintang',
+      description: 'meta berisi count, average, distribution (5..1), mine (ulasan akun ini, status apa pun) dan canReview.',
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        idParam,
+        { name: 'rating', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 5 } },
+        { name: 'sort', in: 'query', schema: { type: 'string', enum: ['newest', 'highest', 'lowest'], default: 'newest' } },
+        ...pageParams([5, 10, 20], 5),
+      ],
+      responses: { 200: { description: 'Daftar ulasan' }, 400: errorResponse('Query tidak valid', 'VALIDATION_ERROR', 'Rating harus 1–5'), 401: unauthorized, 404: notFound },
+    },
+    post: {
+      tags: ['Reviews'],
+      summary: 'Tulis ulasan (status awal menunggu)',
+      security: [{ bearerAuth: [] }],
+      parameters: [idParam],
+      requestBody: reviewBody,
+      responses: {
+        201: reviewOk('Ulasan dibuat, menunggu moderasi'),
+        400: reviewInvalid,
+        401: unauthorized,
+        403: errorResponse('Belum punya pesanan Selesai berisi produk ini', 'NOT_ELIGIBLE', 'Ulasan hanya bisa diberikan untuk produk dari pesanan yang sudah Selesai'),
+        404: notFound,
+        409: errorResponse('Sudah pernah mengulas produk ini', 'ALREADY_REVIEWED', 'Kamu sudah memberi ulasan untuk produk ini'),
+      },
+    },
+  },
+  '/api/v1/reviews/mine': {
+    get: { tags: ['Reviews'], summary: 'Semua ulasan milik akun ini', security: [{ bearerAuth: [] }], responses: { 200: { description: 'Daftar ulasan' }, 401: unauthorized } },
+  },
+  '/api/v1/reviews/{id}': {
+    patch: {
+      tags: ['Reviews'],
+      summary: 'Ubah ulasan sendiri (ulasan ditolak kembali menunggu)',
+      security: [{ bearerAuth: [] }],
+      parameters: [reviewIdParam],
+      requestBody: reviewBody,
+      responses: { 200: reviewOk('Ulasan diubah'), 400: reviewInvalid, 401: unauthorized, 404: reviewNotFound, 409: errorResponse('Sudah disetujui', 'REVIEW_LOCKED', 'Ulasan yang sudah disetujui tidak bisa diubah') },
+    },
+  },
+  '/api/v1/reviews/{id}/photos': {
+    post: {
+      tags: ['Reviews'],
+      summary: 'Tambah foto ulasan (maks 3, PNG/JPG ≤ 1 MB)',
+      description: 'Kirim file mentah dengan Content-Type image/png atau image/jpeg. Nama file opsional di header X-File-Name.',
+      security: [{ bearerAuth: [] }],
+      parameters: [reviewIdParam, { name: 'X-File-Name', in: 'header', schema: { type: 'string' }, example: 'foto.png' }],
+      requestBody: { required: true, content: { 'image/png': { schema: { type: 'string', format: 'binary' } }, 'image/jpeg': { schema: { type: 'string', format: 'binary' } } } },
+      responses: {
+        201: reviewOk('Foto ditambahkan'),
+        400: errorResponse('Isi file bukan PNG/JPG', 'VALIDATION_ERROR', 'Isi file tidak sesuai dengan jenisnya (PNG/JPG)'),
+        401: unauthorized,
+        404: reviewNotFound,
+        409: errorResponse('Ulasan sudah dimoderasi', 'REVIEW_LOCKED', 'Foto hanya bisa diubah selama ulasan Menunggu moderasi'),
+        413: errorResponse('Lebih dari 1 MB', 'PAYLOAD_TOO_LARGE', 'Foto harus PNG atau JPG, maksimal 1 MB'),
+        415: errorResponse('Bukan PNG/JPG', 'UNSUPPORTED_MEDIA_TYPE', 'Foto harus PNG atau JPG, maksimal 1 MB'),
+        422: errorResponse('Sudah 3 foto', 'PHOTO_LIMIT', 'Maksimal 3 foto per ulasan'),
+      },
+    },
+  },
+  '/api/v1/reviews/{id}/photos/{photoId}': {
+    get: {
+      tags: ['Reviews'],
+      summary: 'Ambil foto ulasan',
+      description: 'Foto ulasan yang disetujui bisa dilihat semua akun. Selain itu hanya penulis dan admin pemilik toko.',
+      security: [{ bearerAuth: [] }],
+      parameters: [reviewIdParam, { name: 'photoId', in: 'path', required: true, schema: { type: 'integer' } }],
+      responses: { 200: imageOk, 401: unauthorized, 404: errorResponse('Tidak ada / tidak boleh dilihat', 'NOT_FOUND', 'Foto tidak ditemukan') },
+    },
+    delete: {
+      tags: ['Reviews'],
+      summary: 'Hapus foto ulasan sendiri',
+      security: [{ bearerAuth: [] }],
+      parameters: [reviewIdParam, { name: 'photoId', in: 'path', required: true, schema: { type: 'integer' } }],
+      responses: { 200: reviewOk('Foto dihapus'), 401: unauthorized, 404: errorResponse('Tidak ada', 'NOT_FOUND', 'Foto tidak ditemukan') },
+    },
+  },
+  '/api/v1/reviews/{id}/helpful': {
+    post: {
+      tags: ['Reviews'],
+      summary: 'Tandai / batal tandai "Membantu"',
+      security: [{ bearerAuth: [] }],
+      parameters: [reviewIdParam],
+      responses: {
+        200: { description: '{ data: { helpful, helpfulCount } }' },
+        401: unauthorized,
+        403: errorResponse('Ulasan sendiri', 'OWN_REVIEW', 'Tidak bisa menandai ulasan sendiri'),
+        404: reviewNotFound,
+      },
+    },
+  },
+  '/api/v1/admin/reviews': {
+    get: {
+      tags: ['Admin Reviews'],
+      summary: 'Ulasan untuk produk toko ini + jumlah per status',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'status', in: 'query', schema: { type: 'string', enum: ['menunggu', 'disetujui', 'ditolak'] } }, ...pageParams([5, 10, 20, 50], 10)],
+      responses: { 200: { description: 'Daftar ulasan, meta.counts' }, 401: unauthorized, 403: errorResponse('Bukan admin', 'FORBIDDEN', 'Hanya akun admin yang bisa memoderasi ulasan.') },
+    },
+  },
+  '/api/v1/admin/reviews/{id}': {
+    patch: {
+      tags: ['Admin Reviews'],
+      summary: 'Setujui atau tolak ulasan (hanya yang masih menunggu)',
+      security: [{ bearerAuth: [] }],
+      parameters: [reviewIdParam],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['disetujui', 'ditolak'] }, reason: { type: 'string', minLength: 5, maxLength: 200, description: 'Wajib kalau ditolak' } } },
+            examples: { setujui: { value: { status: 'disetujui' } }, tolak: { value: { status: 'ditolak', reason: 'Isi ulasan tidak sesuai produk' } } },
+          },
+        },
+      },
+      responses: {
+        200: reviewOk('Ulasan dimoderasi'),
+        400: errorResponse('Status / alasan tidak valid', 'VALIDATION_ERROR', 'Alasan penolakan wajib diisi', { reason: 'Alasan penolakan wajib diisi' }),
+        401: unauthorized,
+        403: errorResponse('Bukan admin', 'FORBIDDEN', 'Hanya akun admin yang bisa memoderasi ulasan.'),
+        404: reviewNotFound,
+        409: errorResponse('Sudah dimoderasi', 'ALREADY_MODERATED', 'Ulasan ini sudah dimoderasi'),
+      },
+    },
+  },
+  '/api/v1/notifications': {
+    get: {
+      tags: ['Notifications'],
+      summary: 'Daftar notifikasi terbaru + jumlah belum dibaca',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'unread', in: 'query', schema: { type: 'boolean', default: false } }, ...pageParams([5, 10, 20, 50], 10)],
+      responses: { 200: { description: 'data: Notification[], meta.unread' }, 400: errorResponse('Query tidak valid', 'VALIDATION_ERROR', 'Limit harus 5, 10, 20, atau 50'), 401: unauthorized },
+    },
+  },
+  '/api/v1/notifications/{id}/read': {
+    post: {
+      tags: ['Notifications'],
+      summary: 'Tandai satu notifikasi dibaca',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      responses: { 200: { description: 'Notifikasi terbaru' }, 401: unauthorized, 404: errorResponse('Tidak ada / milik akun lain', 'NOT_FOUND', 'Notifikasi tidak ditemukan') },
+    },
+  },
+  '/api/v1/notifications/read-all': {
+    post: { tags: ['Notifications'], summary: 'Tandai semua dibaca', security: [{ bearerAuth: [] }], responses: { 200: { description: '{ data: { updated } }' }, 401: unauthorized } },
+  },
+});
 
 // Halaman Swagger UI (aset diambil dari CDN, jadi tidak perlu library tambahan)
 const swaggerHtml = `<!doctype html>

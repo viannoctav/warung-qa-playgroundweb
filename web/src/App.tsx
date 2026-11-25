@@ -6,6 +6,8 @@ import { InvoicePage, TrackingPage } from './pages/DocumentPages'
 import { FeaturedPage, StockHistoryPage } from './pages/ProductExtrasPages'
 import StoreOrdersPage, { StoreOrderDetailPage } from './pages/StoreOrdersPage'
 import WarungPayPage from './pages/WarungPayPage'
+import ReviewsAdminPage from './pages/ReviewsAdminPage'
+import NotificationsPage from './pages/NotificationsPage'
 import OrdersPage, { OrderDetailPage } from './pages/OrdersPage'
 import ShopPage from './pages/ShopPage'
 import UserEditPage from './pages/UserEditPage'
@@ -52,6 +54,10 @@ export default function App() {
       return <FeaturedPage />
     case '/products/stock-history':
       return <StockHistoryPage />
+    case '/products/reviews':
+      return <ReviewsAdminPage />
+    case '/notifications':
+      return <NotificationsPage />
     case '/admin/orders':
       return <StoreOrdersPage />
     case '/warungpay':

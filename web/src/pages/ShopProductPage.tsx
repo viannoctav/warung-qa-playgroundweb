@@ -1,3 +1,7 @@
+import ProductReviews from '../components/ProductReviews'
+import { Stars } from '../components/Reviews'
+import { formatRating } from '../validation/review'
+import { isBugUser } from '../bugs'
 import { useEffect, useState } from 'react'
 import { ApiError, addToCart, fetchCart, fetchStoreProduct } from '../api'
 import type { Product } from '../api'
@@ -107,7 +111,8 @@ function ProductDetail({ token, productId }: { token: string; productId: number 
     if (quantityError(quantity, product.stock, inCart)) return
     setBusy(mode)
     try {
-      const cart = await addToCart(token, product.id, Number(quantity))
+      // bug_user: Beli sekarang selalu memasukkan 1
+      const cart = await addToCart(token, product.id, mode === 'buy' && isBugUser() ? 1 : Number(quantity))
       announceCartCount(cart.itemCount)
       setInCart(cart.items.find((item) => item.product.id === product.id)?.quantity ?? 0)
       if (mode === 'buy') {
@@ -157,6 +162,11 @@ function ProductDetail({ token, productId }: { token: string; productId: number 
           <p className="detail-price" id="shop-product-price" data-testid="shop-product-price">
             {formatRupiah(product.price)}
           </p>
+          {(product.ratingCount ?? 0) > 0 && (
+            <a href="#reviews-section" className="rating-link" id="shop-product-rating" data-testid="shop-product-rating">
+              <Stars value={product.ratingAverage ?? 0} size="sm" /> {formatRating(product.ratingAverage ?? 0)} ({product.ratingCount} ulasan)
+            </a>
+          )}
           <p
             className={`product-card-stock${soldOut ? ' is-sold-out' : ''}`}
             id="shop-product-stock"
@@ -212,7 +222,7 @@ function ProductDetail({ token, productId }: { token: string; productId: number 
               disabled={available === 0 || busy !== null}
               onClick={() => submit('add')}
             >
-              {busy === 'add' ? 'Menambahkan…' : 'Tambah ke keranjang'}
+              {busy === 'add' ? 'Menambahkan…' : isBugUser() ? 'Tambah ke keranjnag' : 'Tambah ke keranjang'}
             </button>
             <button
               type="button"
@@ -227,6 +237,8 @@ function ProductDetail({ token, productId }: { token: string; productId: number 
           </div>
         </section>
       </div>
+
+      <ProductReviews token={token} productId={product.id} productName={product.name} />
     </main>
   )
 }

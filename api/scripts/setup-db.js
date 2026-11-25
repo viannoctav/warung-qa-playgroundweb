@@ -200,6 +200,62 @@ async function main() {
     `;
   }
 
+  // Ulasan produk & notifikasi (Fase 6)
+  await sql`
+    CREATE TABLE IF NOT EXISTS reviews (
+      id SERIAL PRIMARY KEY,
+      product_id INTEGER NOT NULL REFERENCES products (id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+      body TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'menunggu' CHECK (status IN ('menunggu', 'disetujui', 'ditolak')),
+      reject_reason TEXT,
+      helpful_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (product_id, user_id)
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS reviews_product_status ON reviews (product_id, status)`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS review_photos (
+      id SERIAL PRIMARY KEY,
+      review_id INTEGER NOT NULL REFERENCES reviews (id) ON DELETE CASCADE,
+      data TEXT NOT NULL,
+      type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS review_helpful (
+      review_id INTEGER NOT NULL REFERENCES reviews (id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      PRIMARY KEY (review_id, user_id)
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      link TEXT NOT NULL DEFAULT '',
+      is_read BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS notifications_user ON notifications (user_id, id)`;
+
+  // Akun latihan bug_user memakai perilaku 'buggy'
+  await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_behavior_check`;
+  await sql`
+    ALTER TABLE users ADD CONSTRAINT users_behavior_check
+    CHECK (behavior IN ('normal', 'locked', 'slow', 'error', 'buggy'))
+  `;
+
   // Akun hasil registrasi selalu role user; admin hanya admin_user
   await sql`UPDATE users SET role = 'user' WHERE is_demo = false AND role <> 'user'`;
 

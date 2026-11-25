@@ -1,9 +1,11 @@
+import { isBugUser } from '../bugs'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { DragEvent } from 'react'
-import { ApiError, cancelOrder, deletePaymentProof, fetchImageUrl, fetchOrder, fetchOrders, uploadPaymentProof } from '../api'
-import type { Order } from '../api'
+import type { DragEvent, ReactNode } from 'react'
+import { ApiError, cancelOrder, deletePaymentProof, fetchImageUrl, fetchMyReviews, fetchOrder, fetchOrders, uploadPaymentProof } from '../api'
+import type { Order, OrderItem, Review } from '../api'
 import AppShell from '../components/AppShell'
 import CancelOrderModal from '../components/CancelOrderModal'
+import { ReviewModal, ReviewStatusChip } from '../components/Reviews'
 import { StatusPill, StatusTimeline, formatDateTime } from '../components/OrderStatus'
 import { errorMessage, handleUnauthorized } from '../errors'
 import { Link } from '../router'
@@ -13,6 +15,10 @@ import { ORDER_MESSAGES, cancelReasonLabel } from '../validation/order-status'
 import { formatRupiah } from '../validation/product'
 
 export { formatDateTime }
+
+function formatDateEnglish(iso: string) {
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date(iso))
+}
 
 const PROOF_TYPES = ['image/png', 'image/jpeg']
 const PROOF_MAX = 1024 * 1024
@@ -174,7 +180,7 @@ function OrdersContent({ token, reloadSignal }: { token: string; reloadSignal: n
                       {id}
                     </td>
                     <td id={`orders-cell-date-${id}`} data-testid={`orders-cell-date-${id}`}>
-                      {formatDateTime(order.createdAt)}
+                      {isBugUser() ? formatDateEnglish(order.createdAt) : formatDateTime(order.createdAt)}
                     </td>
                     <td className="num" id={`orders-cell-items-${id}`} data-testid={`orders-cell-items-${id}`}>
                       {order.itemCount}
@@ -244,7 +250,7 @@ function ProofUpload({ token, order, onOrder }: { token: string; order: Order; o
   async function upload(file: File | undefined) {
     if (!file || busy) return
     setError(null)
-    if (!PROOF_TYPES.includes(file.type) || file.size > PROOF_MAX) {
+    if ((!PROOF_TYPES.includes(file.type) && !isBugUser()) || file.size > PROOF_MAX) {
       setError(ORDER_MESSAGES.proofType)
       if (inputRef.current) inputRef.current.value = ''
       return
@@ -307,7 +313,7 @@ function ProofUpload({ token, order, onOrder }: { token: string; order: Order; o
             className="visually-hidden-file"
             id="order-proof-input"
             data-testid="order-proof-input"
-            accept="image/png,image/jpeg"
+            accept={isBugUser() ? undefined : 'image/png,image/jpeg'}
             disabled={busy}
             onChange={(event) => upload(event.target.files?.[0])}
           />
@@ -400,7 +406,7 @@ export function OrderSummaryCard({ order, prefix }: { order: Order; prefix: stri
   )
 }
 
-export function OrderInfo({ order, prefix }: { order: Order; prefix: string }) {
+export function OrderInfo({ order, prefix, reviewCell }: { order: Order; prefix: string; reviewCell?: (item: OrderItem) => ReactNode }) {
   return (
     <>
       <h2>Produk</h2>
@@ -412,6 +418,7 @@ export function OrderInfo({ order, prefix }: { order: Order; prefix: string }) {
               <th className="num">Harga</th>
               <th className="num">Jumlah</th>
               <th className="num">Subtotal</th>
+              {reviewCell && <th>Ulasan</th>}
             </tr>
           </thead>
           <tbody>
@@ -424,6 +431,7 @@ export function OrderInfo({ order, prefix }: { order: Order; prefix: string }) {
                 <td className="num">{formatRupiah(item.price)}</td>
                 <td className="num">{item.quantity}</td>
                 <td className="num">{formatRupiah(item.subtotal)}</td>
+                {reviewCell && <td className="review-cell">{reviewCell(item)}</td>}
               </tr>
             ))}
           </tbody>
@@ -498,7 +506,26 @@ function OrderDetailContent({ token, orderNumber, success }: { token: string; or
   const [notFound, setNotFound] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cancelOpen, setCancelOpen] = useState(false)
+  const [myReviews, setMyReviews] = useState<Review[]>([])
+  const [reviewTarget, setReviewTarget] = useState<OrderItem | null>(null)
   const prefix = success ? 'order-success' : 'order-detail'
+  const done = order?.status === 'selesai'
+
+  // Ulasan saya: untuk tombol Beri ulasan / status ulasan di tiap produk pesanan Selesai
+  useEffect(() => {
+    if (!done || success) return
+    let cancelled = false
+    fetchMyReviews(token)
+      .then((list) => {
+        if (!cancelled) setMyReviews(list)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [token, done, success])
+
+  const closeReview = useCallback(() => setReviewTarget(null), [])
 
   useEffect(() => {
     let cancelled = false
@@ -614,7 +641,35 @@ function OrderDetailContent({ token, orderNumber, success }: { token: string; or
               <StatusTimeline status={order.status} history={order.history ?? []} idPrefix={prefix} />
             </>
           )}
-          <OrderInfo order={order} prefix={prefix} />
+          <OrderInfo
+            order={order}
+            prefix={prefix}
+            reviewCell={
+              done && !success
+                ? (item) => {
+                    if (!item.productId) return <span className="muted">Produk sudah dihapus</span>
+                    const mine = myReviews.find((r) => r.productId === item.productId)
+                    if (mine) {
+                      return (
+                        <div className="review-cell-inner">
+                          <ReviewStatusChip status={mine.status} id={`order-review-status-${item.productId}`} />
+                          {mine.status !== 'disetujui' && (
+                            <button type="button" className="btn btn-ghost btn-sm" id={`order-review-edit-btn-${item.productId}`} data-testid={`order-review-edit-btn-${item.productId}`} onClick={() => setReviewTarget(item)}>
+                              Ubah
+                            </button>
+                          )}
+                        </div>
+                      )
+                    }
+                    return (
+                      <button type="button" className="btn btn-secondary btn-sm" id={`order-review-btn-${item.productId}`} data-testid={`order-review-btn-${item.productId}`} onClick={() => setReviewTarget(item)}>
+                        Beri ulasan
+                      </button>
+                    )
+                  }
+                : undefined
+            }
+          />
           {!success && order.paymentMethod === 'transfer' && <ProofUpload token={token} order={order} onOrder={setOrder} />}
           {!success && (
             <section className="panel-section">
@@ -652,6 +707,20 @@ function OrderDetailContent({ token, orderNumber, success }: { token: string; or
         </section>
         <OrderSummaryCard order={order} prefix={prefix} />
       </div>
+
+      <ReviewModal
+        open={reviewTarget !== null}
+        token={token}
+        productId={reviewTarget?.productId ?? 0}
+        productName={reviewTarget?.name ?? ''}
+        review={myReviews.find((r) => r.productId === reviewTarget?.productId) ?? null}
+        onClose={closeReview}
+        onSaved={(saved) => {
+          setMyReviews((list) => [saved, ...list.filter((r) => r.id !== saved.id)])
+          setReviewTarget(null)
+          showToast('Ulasan dikirim, menunggu moderasi')
+        }}
+      />
 
       <CancelOrderModal
         open={cancelOpen}

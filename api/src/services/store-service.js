@@ -2,6 +2,9 @@ const { validateListQuery } = require('../validation/product');
 const { validateCheckout, isQuantity, MESSAGES } = require('../validation/checkout');
 const { SHIPPING_METHODS, COD_MAX_TOTAL, computeSummary, formatRupiah } = require('../store/pricing');
 const { publicOrder } = require('./order-service');
+const { isBuggy } = require('../bugs');
+const { messages, LOW_STOCK_THRESHOLD } = require('../notifications/messages');
+const { safeNotify } = require('./notification-service');
 
 const STORE_LIMITS = [12, 24, 48];
 
@@ -40,9 +43,9 @@ function parseId(raw) {
 }
 
 // Masalah satu baris keranjang (null kalau aman dibeli)
-function lineProblem(product, quantity) {
+function lineProblem(product, quantity, ignoreStock = false) {
   if (!product.isActive) return TEXT.inactive;
-  if (product.stock < quantity) return stockMessage(product.stock);
+  if (!ignoreStock && product.stock < quantity) return stockMessage(product.stock);
   return null;
 }
 
@@ -77,7 +80,7 @@ function createStoreService(deps) {
       product,
       quantity,
       subtotal: product.price * quantity,
-      problem: lineProblem(product, quantity),
+      problem: lineProblem(product, quantity, isBuggy(user)),
     }));
     const summary = computeSummary(
       items.map((item) => ({ price: item.product.price, quantity: item.quantity })),
@@ -100,7 +103,14 @@ function createStoreService(deps) {
     if (Object.keys(errors).length > 0) return fail(400, 'VALIDATION_ERROR', 'Parameter tidak valid', errors);
 
     return withStore(user, async (ownerId) => {
-      const { total, items } = await deps.listProducts(ownerId, { ...value, status: 'active' });
+      const options = { ...value, status: 'active' };
+      if (isBuggy(user)) {
+        if (options.categories && options.categories.length > 1) options.categories = options.categories.slice(-1);
+        if (options.sort === 'price') options.sort = 'priceText';
+        options.caseSensitive = true;
+        if (options.page > 1) options.offsetShift = -1;
+      }
+      const { total, items } = await deps.listProducts(ownerId, options);
       const totalPages = Math.max(1, Math.ceil(total / value.limit));
       return {
         status: 200,
@@ -120,7 +130,11 @@ function createStoreService(deps) {
   // ---------- Keranjang ----------
 
   async function getCart(user) {
-    return withStore(user, (ownerId) => cartResult(user, ownerId));
+    return withStore(user, async (ownerId) => {
+      const result = await cartResult(user, ownerId);
+      if (isBuggy(user)) result.body.data.subtotal = String(result.body.data.subtotal);
+      return result;
+    });
   }
 
   async function addItem(user, body) {
@@ -137,7 +151,7 @@ function createStoreService(deps) {
 
       const total = (await deps.getCartQuantity(user.id, product.id)) + quantity;
       if (total > 99) return fail(422, 'QUANTITY_LIMIT', 'Maksimal 99 per produk di keranjang', { quantity: MESSAGES.quantity });
-      if (total > product.stock) {
+      if (total > product.stock && !isBuggy(user)) {
         const message = stockMessage(product.stock);
         return fail(422, 'INSUFFICIENT_STOCK', message, { quantity: message });
       }
@@ -158,7 +172,7 @@ function createStoreService(deps) {
       const product = await deps.getProduct(ownerId, productId);
       if (!product) return fail(404, 'NOT_FOUND', TEXT.notInCart);
       // Mengurangi jumlah selalu boleh; menambah dicek terhadap stok
-      if (quantity > current && quantity > product.stock) {
+      if (quantity > current && quantity > product.stock && !isBuggy(user)) {
         const message = stockMessage(product.stock);
         return fail(422, 'INSUFFICIENT_STOCK', message, { quantity: message });
       }
@@ -244,6 +258,9 @@ function createStoreService(deps) {
         return fail(400, 'VALIDATION_ERROR', TEXT.codLimit, { paymentMethod: TEXT.codLimit });
       }
 
+      const buggy = isBuggy(user);
+      // bug_user: proses lebih lambat (dua klik cepat sama-sama lolos), diskon terpotong lagi, stok tidak dikurangi
+      if (buggy && deps.sleep) await deps.sleep(1500);
       try {
         const order = await deps.createOrder({
           buyerId: user.id,
@@ -251,8 +268,16 @@ function createStoreService(deps) {
           ownerId,
           orderNumber: deps.newOrderNumber(),
           checkout: { ...value, paymentRef: value.paymentMethod === 'ewallet' ? value.paymentRef : '' },
-          summary,
+          summary: buggy ? { ...summary, total: Math.max(0, summary.total - summary.discount) } : summary,
+          skipStock: buggy,
         });
+        await safeNotify(deps, ownerId, messages.orderNew(order, user.username));
+        if (!buggy && deps.findLowStock) {
+          const ids = (order.items || []).map((item) => item.productId).filter(Boolean);
+          for (const product of await deps.findLowStock(ownerId, ids, LOW_STOCK_THRESHOLD)) {
+            await safeNotify(deps, ownerId, messages.stockLow(product));
+          }
+        }
         return { status: 201, body: { data: publicOrder(order) } };
       } catch (err) {
         // Stok dibeli orang lain di saat yang sama: CHECK (stock >= 0) menggagalkan transaksi
@@ -269,7 +294,8 @@ function createStoreService(deps) {
   }
 
   async function getOrder(user, orderNumber) {
-    const order = await deps.getOrder(user.id, String(orderNumber || ''));
+    const number = String(orderNumber || '');
+    const order = isBuggy(user) && deps.findOrderByNumber ? await deps.findOrderByNumber(number) : await deps.getOrder(user.id, number);
     if (!order) return fail(404, 'NOT_FOUND', TEXT.orderNotFound);
     return { status: 200, body: { data: publicOrder(order) } };
   }

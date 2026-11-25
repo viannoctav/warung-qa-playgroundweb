@@ -3,3 +3,6 @@ node_modules/
 .env
 .env.local
 dist/
+
+# Catatan pribadi (hanya di laptop, tidak ikut ke GitHub)
+*.local.md

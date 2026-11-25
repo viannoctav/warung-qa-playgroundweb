@@ -125,8 +125,23 @@ const ORDER_COLUMNS = `o.id, o.order_number, o.user_id, o.store_owner_id, o.stat
  * kurangi stok, tandai pembayaran WarungPay terpakai, kosongkan keranjang.
  * Kalau stok ada yang jadi minus, CHECK constraint di tabel products menggagalkan semuanya (kode 23514).
  */
-async function createOrder({ buyerId, buyerUsername, ownerId, orderNumber, checkout, summary }) {
+async function createOrder({ buyerId, buyerUsername, ownerId, orderNumber, checkout, summary, skipStock = false }) {
   const sql = getSql();
+  const stockStatements = skipStock
+    ? []
+    : [
+        sql`
+          INSERT INTO stock_movements (owner_id, product_id, product_name, change, reason, ref, stock_after)
+          SELECT ${ownerId}, p.id, p.name, -c.quantity, 'order', ${orderNumber}, p.stock - c.quantity
+          FROM cart_items c JOIN products p ON p.id = c.product_id
+          WHERE c.user_id = ${buyerId} AND p.owner_id = ${ownerId}
+        `,
+        sql`
+          UPDATE products p SET stock = p.stock - c.quantity, updated_at = now()
+          FROM cart_items c
+          WHERE c.user_id = ${buyerId} AND c.product_id = p.id AND p.owner_id = ${ownerId}
+        `,
+      ];
   await sql.transaction([
     sql`
       INSERT INTO orders (
@@ -152,17 +167,7 @@ async function createOrder({ buyerId, buyerUsername, ownerId, orderNumber, check
       INSERT INTO order_status_history (order_id, status, actor, note)
       SELECT id, 'diproses', ${buyerUsername}, 'Pesanan dibuat' FROM orders WHERE order_number = ${orderNumber}
     `,
-    sql`
-      INSERT INTO stock_movements (owner_id, product_id, product_name, change, reason, ref, stock_after)
-      SELECT ${ownerId}, p.id, p.name, -c.quantity, 'order', ${orderNumber}, p.stock - c.quantity
-      FROM cart_items c JOIN products p ON p.id = c.product_id
-      WHERE c.user_id = ${buyerId} AND p.owner_id = ${ownerId}
-    `,
-    sql`
-      UPDATE products p SET stock = p.stock - c.quantity, updated_at = now()
-      FROM cart_items c
-      WHERE c.user_id = ${buyerId} AND c.product_id = p.id AND p.owner_id = ${ownerId}
-    `,
+    ...stockStatements,
     sql`UPDATE payments SET order_number = ${orderNumber} WHERE ref = ${checkout.paymentRef || ''} AND user_id = ${buyerId}`,
     sql`DELETE FROM cart_items WHERE user_id = ${buyerId}`,
   ]);
@@ -221,6 +226,14 @@ async function getOrder(buyerId, orderNumber) {
     `SELECT ${ORDER_COLUMNS} FROM orders o JOIN users u ON u.id = o.user_id WHERE o.user_id = $1 AND o.order_number = $2`,
     [buyerId, orderNumber],
   );
+  if (!rows[0]) return null;
+  return { ...toOrder(rows[0]), id: rows[0].id, storeOwnerId: rows[0].store_owner_id, ...(await orderExtras(rows[0].id)) };
+}
+
+// Cari pesanan hanya dari nomornya, tanpa memeriksa pemilik (dipakai akun latihan bug_user)
+async function findOrderByNumber(orderNumber) {
+  const sql = getSql();
+  const rows = await sql.query(`SELECT ${ORDER_COLUMNS} FROM orders o JOIN users u ON u.id = o.user_id WHERE o.order_number = $1`, [orderNumber]);
   if (!rows[0]) return null;
   return { ...toOrder(rows[0]), id: rows[0].id, storeOwnerId: rows[0].store_owner_id, ...(await orderExtras(rows[0].id)) };
 }
@@ -380,6 +393,7 @@ module.exports = {
   createOrder,
   listOrders,
   getOrder,
+  findOrderByNumber,
   listStoreOrders,
   getStoreOrder,
   changeOrderStatus,

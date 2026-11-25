@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ApiError, NETWORK_ERROR_MESSAGE, fetchCart, fetchMe, resetData } from '../api'
 import type { User } from '../auth'
-import { clearSession, getStoredUser, getToken } from '../auth'
+import { clearSession, getShellToken, getStoredUser, logoutKeepingLeftover } from '../auth'
+import { isBugUser } from '../bugs'
+import NotificationBell, { announceNotificationsChanged } from './NotificationBell'
 import { CART_EVENT, announceCartCount } from '../cart'
 import { Link, navigate, usePath } from '../router'
 import { showToast } from '../toast'
@@ -17,7 +19,7 @@ type Props = {
 
 // Kerangka halaman setelah login: header (logo, menu, menu akun berisi Reset Data & Keluar) + isi halaman
 export default function AppShell({ children, onReset }: Props) {
-  const token = getToken() ?? ''
+  const token = getShellToken() ?? ''
   const [user, setUser] = useState<User | null>(getStoredUser)
   const [confirmReset, setConfirmReset] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -59,6 +61,11 @@ export default function AppShell({ children, onReset }: Props) {
   }, [token])
 
   function handleLogout() {
+    if (isBugUser()) {
+      logoutKeepingLeftover()
+      navigate('/login')
+      return
+    }
     clearSession()
     navigate('/login', true)
   }
@@ -72,6 +79,7 @@ export default function AppShell({ children, onReset }: Props) {
       setConfirmReset(false)
       showToast('Data direset')
       announceCartCount(0)
+      announceNotificationsChanged()
       onReset?.()
     } catch (error) {
       setConfirmReset(false)
@@ -136,6 +144,7 @@ export default function AppShell({ children, onReset }: Props) {
             </span>
           </Link>
         </nav>
+        <NotificationBell token={token} />
         <AccountMenu user={user} onReset={() => setConfirmReset(true)} onLogout={handleLogout} />
       </header>
 

@@ -1,3 +1,4 @@
+import { isBugUser } from '../bugs'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { ApiError, createOrder, fetchCart, previewCheckout } from '../api'
@@ -226,8 +227,11 @@ function CheckoutContent({ token }: { token: string }) {
     setVoucherError(null)
   }
 
+  // bug_user: tombol tidak dikunci saat pesanan diproses
+  const buggy = isBugUser()
+
   async function placeOrder() {
-    if (submitLock.current) return
+    if (submitLock.current && !buggy) return
     setSubmitError(null)
     if (!payment) {
       setPaymentError(CHECKOUT_MESSAGES.paymentMethod)
@@ -553,7 +557,7 @@ function CheckoutContent({ token }: { token: string }) {
             className="btn btn-primary"
             id="checkout-place-order-btn"
             data-testid="checkout-place-order-btn"
-            disabled={submitting}
+            disabled={submitting && !buggy}
             onClick={placeOrder}
           >
             {submitting ? 'Memproses pesanan…' : `Buat pesanan (${formatRupiah(total)})`}

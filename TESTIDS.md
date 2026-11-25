@@ -59,6 +59,9 @@ Reset Data dan Keluar ada di dalam **menu akun**. Buka dulu menunya (hover, klik
 | Nama pengguna | `header-username` | |
 | Badge admin | `header-admin-badge` | |
 | Daftar menu | `header-account-menu` | Hanya ada di DOM saat terbuka. Tertutup 300 ms setelah kursor keluar, atau Esc |
+| Lonceng notifikasi | `header-notif-btn`, `header-notif-count` | Angka = belum dibaca (tidak ada kalau 0). Web mengecek notifikasi baru tiap 5 detik |
+| Panel notifikasi | `header-notif-panel`, `header-notif-item-{id}`, `header-notif-read-all-btn`, `header-notif-all-link`, `header-notif-empty` | Item punya `data-type` dan `data-read`. Klik item = tandai dibaca + buka halaman terkait |
+| Pop-up notifikasi baru | `notif-popups`, `notif-popup-{id}`, `notif-popup-open-btn-{id}`, `notif-popup-close-btn-{id}` | Muncul di pojok kanan bawah, hilang sendiri setelah 6 detik. Latihan *wait* |
 | Item: Pesanan Saya / Reset Data / Keluar | `header-menu-orders-btn`, `header-reset-btn`, `header-logout-btn` | Panah atas/bawah pindah item, Home/End ke ujung |
 
 ## Produk (`/products`)
@@ -262,7 +265,7 @@ Reset Data dan Keluar ada di dalam **menu akun**. Buka dulu menunya (hover, klik
 
 | Elemen | `data-testid` | Catatan |
 | --- | --- | --- |
-| Tab | `products-tabs`, `products-tab-list`, `products-tab-featured`, `products-tab-stock` | Tiap tab punya URL: `/products`, `/products/featured`, `/products/stock-history`. Tab aktif punya `aria-current="page"` |
+| Tab | `products-tabs`, `products-tab-list`, `products-tab-featured`, `products-tab-stock`, `products-tab-reviews` | Tiap tab punya URL: `/products`, `/products/featured`, `/products/stock-history`, `/products/reviews`. Tab aktif punya `aria-current="page"` |
 
 ## Produk unggulan (`/products/featured`, khusus admin)
 
@@ -346,6 +349,53 @@ Reset Data dan Keluar ada di dalam **menu akun**. Buka dulu menunya (hover, klik
 | Form | `warungpay-form`, `warungpay-phone-input`, `warungpay-pin-input`, `warungpay-pay-btn` | PIN latihan `123456`, saldo Rp 2.000.000 |
 | Error | `warungpay-phone-error`, `warungpay-pin-error`, `warungpay-error` | PIN salah tampil di `warungpay-pin-error` |
 | Berhasil | `warungpay-success`, `warungpay-ref` | Iframe mengirim `postMessage` ke halaman Checkout |
+
+## Ulasan di detail produk (`/shop/{id}`)
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Rating singkat dekat harga | `shop-product-rating` | Hanya kalau sudah ada ulasan disetujui |
+| Rating di kartu Toko | `shop-card-rating-{id}` | Contoh "★ 4,5 (2)" |
+| Bagian ulasan | `reviews-section`, `reviews-write-btn` | Tombol Tulis ulasan hanya untuk pembeli dengan pesanan Selesai yang belum mengulas |
+| Ringkasan | `reviews-summary`, `reviews-average`, `reviews-average-stars`, `reviews-count` | Bintang punya `data-rating` |
+| Sebaran bintang (bisa diklik sebagai filter) | `reviews-dist-{1..5}`, `reviews-dist-count-{1..5}` | `aria-pressed="true"` saat aktif |
+| Ulasan kamu | `reviews-mine`, `reviews-mine-status`, `reviews-mine-stars`, `reviews-mine-body`, `reviews-mine-reason`, `reviews-mine-edit-btn` | Status punya `data-status` = `menunggu` / `disetujui` / `ditolak`. Ubah tidak ada kalau sudah disetujui |
+| Filter / urutkan | `reviews-rating-filter`, `reviews-sort-select` | Sort: `newest`, `highest`, `lowest` |
+| Daftar | `reviews-list`, `review-item-{id}`, `review-stars-{id}`, `review-author-{id}`, `review-body-{id}`, `review-photo-img-{id}-{fotoId}` | Item punya `data-rating` |
+| Membantu | `review-helpful-btn-{id}`, `review-helpful-count-{id}` | Tidak ada di ulasan sendiri. `aria-pressed` = sudah ditandai |
+| Kosong / error / halaman | `reviews-empty`, `reviews-error-alert`, `reviews-page-prev-btn`, `reviews-page-next-btn`, `reviews-page-info` | 5 ulasan per halaman |
+
+## Modal tulis / ubah ulasan
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Modal | `review-modal`, `review-modal-title`, `review-modal-error`, `review-modal-cancel-btn`, `review-modal-submit-btn` | |
+| Rating | `review-rating-star-{1..5}`, `review-rating-label`, `review-rating-error` | Radio tersembunyi: pakai `check(force=True)` atau klik bintangnya. Panah kiri/kanan juga bisa |
+| Isi ulasan | `review-body-input`, `review-body-counter`, `review-body-error` | 10–500 karakter |
+| Foto | `review-photo-dropzone`, `review-photo-input`, `review-photo-error`, `review-photo-list` | Drag & drop atau pilih, PNG/JPG maks 1 MB, maks 3 foto |
+| Foto tersimpan / baru | `review-photo-{fotoId}`, `review-photo-remove-btn-{fotoId}`, `review-photo-new-{n}`, `review-photo-new-remove-btn-{n}` | |
+| Di detail pesanan Selesai | `order-review-btn-{productId}`, `order-review-status-{productId}`, `order-review-edit-btn-{productId}` | Kolom Ulasan di tabel produk |
+
+## Ulasan produk untuk admin (`/products/reviews`)
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Kontainer / judul / jumlah | `admin-reviews-page`, `admin-reviews-title`, `admin-reviews-total` | |
+| Tab status + jumlah | `admin-reviews-tab-{menunggu\|disetujui\|ditolak\|all}`, `admin-reviews-tab-{...}-count` | Default: Menunggu |
+| Kartu ulasan | `admin-review-{id}`, `admin-review-product-{id}`, `admin-review-status-{id}`, `admin-review-stars-{id}`, `admin-review-author-{id}`, `admin-review-body-{id}`, `admin-review-photo-{id}-{fotoId}`, `admin-review-reason-{id}` | Kartu punya `data-status` |
+| Setujui / Tolak | `admin-review-approve-btn-{id}`, `admin-review-reject-btn-{id}` | Hanya untuk yang Menunggu |
+| Modal tolak | `reject-review-modal`, `reject-review-reason-input`, `reject-review-reason-counter`, `reject-review-reason-error`, `reject-review-modal-submit-btn`, `reject-review-modal-cancel-btn` | Alasan 5–200 karakter, dikirim ke pembeli lewat notifikasi |
+| Kosong / error / halaman | `admin-reviews-empty`, `admin-reviews-error-alert`, `admin-reviews-page-prev-btn`, `admin-reviews-page-next-btn`, `admin-reviews-page-info` | |
+
+## Notifikasi (`/notifications`)
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Kontainer / judul / belum dibaca | `notifications-page`, `notifications-title`, `notifications-unread` | |
+| Filter | `notifications-filter-all`, `notifications-filter-unread` | `aria-pressed="true"` saat aktif |
+| Tandai semua dibaca | `notifications-read-all-btn` | |
+| Item | `notifications-item-{id}`, `notifications-open-btn-{id}`, `notifications-read-btn-{id}` | Item punya `data-type`: `order_new`, `order_shipped`, `order_done`, `order_cancelled`, `stock_low`, `review_new`, `review_approved`, `review_rejected` |
+| Kosong / error / halaman | `notifications-empty`, `notifications-error-alert`, `notifications-page-prev-btn`, `notifications-page-next-btn`, `notifications-page-info` | 20 per halaman |
 
 ## Dialog bawaan browser
 

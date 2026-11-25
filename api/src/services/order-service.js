@@ -1,5 +1,8 @@
 // Status pesanan (admin & pembeli), bukti transfer, lacak paket, dan WarungPay.
 const { SHIPPING_METHODS } = require('../store/pricing');
+const { isBuggy } = require('../bugs');
+const { messages } = require('../notifications/messages');
+const { safeNotify } = require('./notification-service');
 
 const STATUSES = ['diproses', 'dikirim', 'selesai', 'dibatalkan'];
 const STATUS_LABEL = { diproses: 'Diproses', dikirim: 'Dikirim', selesai: 'Selesai', dibatalkan: 'Dibatalkan' };
@@ -176,7 +179,14 @@ function createOrderService(deps) {
     }
     const error = await applyTransition(user, { ...order, storeOwnerId: user.id }, to, body);
     if (error) return error;
-    return { status: 200, body: { data: publicOrder(await deps.getStoreOrder(user.id, order.orderNumber)) } };
+    const updated = await deps.getStoreOrder(user.id, order.orderNumber);
+    if (to === 'dikirim') await safeNotify(deps, order.userId, messages.orderShipped(updated));
+    if (to === 'selesai') await safeNotify(deps, order.userId, messages.orderDone(updated));
+    if (to === 'dibatalkan') {
+      const reason = CANCEL_REASONS[updated.cancelReason] || updated.cancelReason;
+      await safeNotify(deps, order.userId, messages.orderCancelledByStore(updated, reason));
+    }
+    return { status: 200, body: { data: publicOrder(updated) } };
   }
 
   async function storeProof(user, orderNumber) {
@@ -198,6 +208,7 @@ function createOrderService(deps) {
     if (order.status !== 'diproses') return fail(409, 'INVALID_TRANSITION', TEXT.buyerCancelOnly);
     const error = await applyTransition(user, order, 'dibatalkan', body);
     if (error) return error;
+    await safeNotify(deps, order.storeOwnerId, messages.orderCancelledByBuyer(order, user.username));
     return { status: 200, body: { data: publicOrder(await findOwn(user, order.orderNumber)) } };
   }
 
@@ -207,12 +218,14 @@ function createOrderService(deps) {
     if (order.paymentMethod !== 'transfer') return fail(409, 'NOT_ALLOWED', TEXT.proofTransferOnly);
     if (order.status !== 'diproses') return fail(409, 'NOT_ALLOWED', TEXT.proofLocked);
 
-    const type = String(upload.contentType || '').split(';')[0].trim().toLowerCase();
-    if (!PROOF_TYPES.includes(type)) return fail(415, 'UNSUPPORTED_MEDIA_TYPE', TEXT.proofType);
+    // bug_user: jenis file tidak diperiksa
+    const buggy = isBuggy(user);
+    const type = String(upload.contentType || '').split(';')[0].trim().toLowerCase() || 'application/octet-stream';
+    if (!buggy && !PROOF_TYPES.includes(type)) return fail(415, 'UNSUPPORTED_MEDIA_TYPE', TEXT.proofType);
     const buffer = upload.buffer;
     if (!Buffer.isBuffer(buffer) || buffer.length === 0) return fail(400, 'VALIDATION_ERROR', TEXT.proofRequired);
     if (buffer.length > PROOF_MAX_BYTES) return fail(413, 'PAYLOAD_TOO_LARGE', TEXT.proofTooLarge);
-    if (!matchesSignature(buffer, type)) return fail(400, 'VALIDATION_ERROR', TEXT.proofMismatch);
+    if (!buggy && !matchesSignature(buffer, type)) return fail(400, 'VALIDATION_ERROR', TEXT.proofMismatch);
 
     const rawName = typeof upload.fileName === 'string' ? upload.fileName.trim() : '';
     const name = (rawName.replace(/[^\w.\- ]/g, '').slice(0, 80) || `bukti-transfer.${type === 'image/png' ? 'png' : 'jpg'}`);

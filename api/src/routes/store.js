@@ -5,6 +5,7 @@ const { createStoreService, newOrderNumber } = require('../services/store-servic
 const { createOrderService, newPaymentRef, PROOF_MAX_BYTES } = require('../services/order-service');
 const productRepo = require('../repositories/products');
 const storeRepo = require('../repositories/store');
+const notificationRepo = require('../repositories/notifications');
 const { sendError, sendResult } = require('../http');
 const { MESSAGES } = require('../config');
 
@@ -16,8 +17,15 @@ const store = createStoreService({
   getProduct: productRepo.getProduct,
   ...storeRepo,
   newOrderNumber: () => newOrderNumber(),
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  notify: notificationRepo.createNotification,
+  findLowStock: notificationRepo.findLowStock,
 });
-const orders = createOrderService({ ...storeRepo, newPaymentRef: () => newPaymentRef() });
+const orders = createOrderService({
+  ...storeRepo,
+  newPaymentRef: () => newPaymentRef(),
+  notify: notificationRepo.createNotification,
+});
 
 function sendImage(res, result) {
   if (!result.image) return sendResult(res, result);
@@ -62,7 +70,8 @@ router.get('/orders/:orderNumber/tracking', async (req, res) =>
   sendResult(res, await orders.tracking(req.user, req.params.orderNumber)));
 
 // Bukti transfer: file mentah PNG/JPG maks 1 MB, nama file opsional di header X-File-Name
-const rawProof = express.raw({ type: ['image/png', 'image/jpeg'], limit: PROOF_MAX_BYTES });
+// Semua jenis file dibaca mentah; service yang memutuskan boleh atau tidak
+const rawProof = express.raw({ type: () => true, limit: PROOF_MAX_BYTES });
 router.put('/orders/:orderNumber/payment-proof', rawProof, async (req, res) => {
   let fileName = '';
   try {

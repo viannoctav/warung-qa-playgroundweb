@@ -8,6 +8,7 @@ const DEMO_USERS = [
   { username: 'locked_user', name: 'Locked User', role: 'user', behavior: 'locked' },
   { username: 'slow_user', name: 'Slow User', role: 'user', behavior: 'slow' },
   { username: 'error_user', name: 'Error User', role: 'user', behavior: 'error' },
+  { username: 'bug_user', name: 'Bug User', role: 'user', behavior: 'buggy' },
 ].map((user) => ({ ...user, email: `${user.username}@warungqa.test` }));
 
 module.exports = { DEMO_PASSWORD, DEMO_USERS };

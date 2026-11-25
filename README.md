@@ -18,6 +18,7 @@ Password semua akun: `Warung123!`
 | `locked_user` | Akun terkunci (423) |
 | `slow_user` | Login berhasil setelah 5 detik |
 | `error_user` | Server error (500) |
+| `bug_user` | Login berhasil, tapi ada bug tersembunyi untuk dicari |
 
 Akun hasil registrasi selalu ber-role **user** (pembeli di toko `admin_user`) dan aktif 24 jam. Admin hanya `admin_user`.
 
@@ -44,6 +45,13 @@ Admin (`admin_user`):
 - **Pesanan Toko** (`/admin/orders`): tab status, cari, urutkan, kirim / selesaikan / batalkan.
 - **Kelola Produk**: tab *Daftar produk*, *Produk unggulan* (drag & drop urutan, maks 6, dipakai sort "Pilihan admin" di Toko), dan *Riwayat stok* (sekitar 500 baris, infinite scroll).
 - **Kelola User**: hapus pakai dialog `prompt` (ketik username).
+
+Ulasan & notifikasi:
+
+- **Ulasan:** pembeli dengan pesanan **Selesai** bisa memberi ulasan (bintang 1–5, teks 10–500 karakter, maks 3 foto) dari detail pesanan atau detail produk. Ulasan baru **Menunggu** sampai admin **Setujui** atau **Tolak** (dengan alasan) di tab *Ulasan* Kelola Produk. Yang tampil di toko hanya yang disetujui, lengkap dengan rata-rata bintang dan tombol **Membantu**.
+- **Notifikasi:** lonceng di header, dicek otomatis tiap 5 detik, dengan pop-up untuk notifikasi baru. Pembeli dapat kabar pesanan Dikirim/Selesai/Dibatalkan dan ulasan Disetujui/Ditolak. Admin dapat kabar pesanan baru, pesanan dibatalkan pembeli, ulasan baru, dan stok tinggal 5 atau kurang.
+
+Akun **`bug_user`** (password `Warung123!`) menyimpan bug tersembunyi dari tingkat critical sampai low. Temukan sendiri lewat web maupun API. Akun lain tidak terpengaruh.
 
 Data latihan:
 
@@ -104,6 +112,15 @@ File OpenAPI untuk di-import ke Postman: `/api-docs/openapi.json`.
 | GET | `/api/v1/admin/orders/{nomor}` | Detail pesanan toko (admin) |
 | PATCH | `/api/v1/admin/orders/{nomor}/status` | Body `{ "status": "dikirim", "courier", "trackingNumber" }`, `{ "status": "selesai" }`, atau `{ "status": "dibatalkan", "reason", "note" }` |
 | GET | `/api/v1/admin/orders/{nomor}/payment-proof` | Bukti transfer dari pembeli (admin) |
+| GET / POST | `/api/v1/store/products/{id}/reviews` | Ulasan disetujui + statistik bintang (`rating`, `sort`, `page`, `limit`) / tulis ulasan `{ "rating", "body" }` |
+| GET | `/api/v1/reviews/mine` | Semua ulasan milik akun ini |
+| PATCH | `/api/v1/reviews/{id}` | Ubah ulasan sendiri (yang ditolak kembali menunggu) |
+| POST / GET / DELETE | `/api/v1/reviews/{id}/photos`, `/api/v1/reviews/{id}/photos/{fotoId}` | Foto ulasan: file mentah PNG/JPG maks 1 MB, maks 3 |
+| POST | `/api/v1/reviews/{id}/helpful` | Tandai / batal tandai Membantu |
+| GET | `/api/v1/admin/reviews` | Ulasan toko (admin): `status`, `page`, `limit` + jumlah per status |
+| PATCH | `/api/v1/admin/reviews/{id}` | `{ "status": "disetujui" }` atau `{ "status": "ditolak", "reason" }` |
+| GET | `/api/v1/notifications` | Notifikasi (`unread`, `page`, `limit`) + jumlah belum dibaca |
+| POST | `/api/v1/notifications/{id}/read`, `/api/v1/notifications/read-all` | Tandai dibaca |
 | GET | `/api/v1/users` | Kelola User (admin): `search`, `role`, `type` (demo/registered), `sort`, `order`, `page`, `limit` |
 | GET / PATCH / DELETE | `/api/v1/users/{id}` | Detail / ubah data (fullName, username, email, phone, birthDate, gender) / hapus (admin) |
 | PUT | `/api/v1/users/{id}/password` | Body `{ "newPassword", "confirmPassword" }` (admin) |

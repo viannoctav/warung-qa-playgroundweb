@@ -4,6 +4,7 @@ const TABS = [
   { to: '/products', id: 'products-tab-list', label: 'Daftar produk' },
   { to: '/products/featured', id: 'products-tab-featured', label: 'Produk unggulan' },
   { to: '/products/stock-history', id: 'products-tab-stock', label: 'Riwayat stok' },
+  { to: '/products/reviews', id: 'products-tab-reviews', label: 'Ulasan' },
 ]
 
 // Tab di dalam menu Kelola Produk. Tiap tab punya URL sendiri supaya bisa dibuka langsung.

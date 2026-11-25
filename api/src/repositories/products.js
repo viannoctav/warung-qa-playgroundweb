@@ -11,6 +11,7 @@ const SORT_SQL = {
   stock: 'stock',
   createdAt: 'created_at',
   featured: 'featured_rank',
+  priceText: 'price::text',
 };
 
 const UPDATE_COLUMNS = {
@@ -36,10 +37,17 @@ function toProduct(row) {
     // URL gambar memakai versi (waktu upload) supaya browser tidak menampilkan gambar lama
     imageUrl: row.has_image ? `/api/v1/products/${row.id}/image?v=${new Date(row.image_updated_at).getTime()}` : null,
     featuredRank: row.featured_rank ?? null,
+    ...(row.rating_count !== undefined
+      ? { ratingAverage: row.rating_average === null ? null : Number(row.rating_average), ratingCount: row.rating_count }
+      : {}),
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
 }
+
+// Rata-rata bintang & jumlah ulasan yang sudah disetujui
+const RATING_COLUMNS = `(SELECT ROUND(AVG(r.rating)::numeric, 1) FROM reviews r WHERE r.product_id = products.id AND r.status = 'disetujui') AS rating_average,
+  (SELECT COUNT(*) FROM reviews r WHERE r.product_id = products.id AND r.status = 'disetujui')::int AS rating_count`;
 
 // Pencarian memakai ILIKE: % dan _ dicari apa adanya, bukan sebagai wildcard
 function escapeLike(text) {
@@ -97,7 +105,7 @@ async function resetCatalog(ownerId) {
   ]);
 }
 
-async function listProducts(ownerId, { search, category, categories, minPrice, maxPrice, status, sort, order, page, limit }) {
+async function listProducts(ownerId, { search, category, categories, minPrice, maxPrice, status, sort, order, page, limit, caseSensitive, offsetShift = 0 }) {
   const sql = getSql();
   const params = [ownerId];
   const where = ['owner_id = $1'];
@@ -105,7 +113,8 @@ async function listProducts(ownerId, { search, category, categories, minPrice, m
   if (search) {
     params.push(`%${escapeLike(search)}%`);
     const p = `$${params.length}`;
-    where.push(`(name ILIKE ${p} ESCAPE '\\' OR sku ILIKE ${p} ESCAPE '\\')`);
+    const like = caseSensitive ? 'LIKE' : 'ILIKE';
+    where.push(`(name ${like} ${p} ESCAPE '\\' OR sku ${like} ${p} ESCAPE '\\')`);
   }
   const categoryList = categories && categories.length > 0 ? categories : category ? [category] : [];
   if (categoryList.length > 0) {
@@ -134,8 +143,8 @@ async function listProducts(ownerId, { search, category, categories, minPrice, m
       ? 'featured_rank ASC NULLS LAST, lower(name) ASC, id ASC'
       : `${SORT_SQL[sort]} ${order === 'desc' ? 'DESC' : 'ASC'}, id ASC`;
   const rows = await sql.query(
-    `SELECT ${COLUMNS} FROM products WHERE ${whereSql} ORDER BY ${orderSql} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-    [...params, limit, (page - 1) * limit],
+    `SELECT ${COLUMNS}, ${RATING_COLUMNS} FROM products WHERE ${whereSql} ORDER BY ${orderSql} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, Math.max(0, (page - 1) * limit + offsetShift)],
   );
 
   return { total, items: rows.map(toProduct) };
@@ -143,7 +152,7 @@ async function listProducts(ownerId, { search, category, categories, minPrice, m
 
 async function getProduct(ownerId, id) {
   const sql = getSql();
-  const rows = await sql.query(`SELECT ${COLUMNS} FROM products WHERE owner_id = $1 AND id = $2`, [ownerId, id]);
+  const rows = await sql.query(`SELECT ${COLUMNS}, ${RATING_COLUMNS} FROM products WHERE owner_id = $1 AND id = $2`, [ownerId, id]);
   return rows[0] ? toProduct(rows[0]) : null;
 }
 

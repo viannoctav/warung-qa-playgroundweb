@@ -21,6 +21,7 @@ const DEMO_ACCOUNTS = [
   { username: 'locked_user', note: 'Akun terkunci' },
   { username: 'slow_user', note: 'Login berhasil setelah 5 detik' },
   { username: 'error_user', note: 'Server error' },
+  { username: 'bug_user', note: 'Ada bug tersembunyi, temukan sendiri' },
 ]
 
 function validateUsername(value: string): string | null {

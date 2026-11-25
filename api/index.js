@@ -6,6 +6,8 @@ const authRoutes = require('./src/routes/auth');
 const productRoutes = require('./src/routes/products');
 const storeRoutes = require('./src/routes/store');
 const userRoutes = require('./src/routes/users');
+const reviewRoutes = require('./src/routes/reviews');
+const notificationRoutes = require('./src/routes/notifications');
 const { spec, swaggerHtml } = require('./src/openapi');
 const { sendError } = require('./src/http');
 const { MESSAGES } = require('./src/config');
@@ -31,6 +33,8 @@ app.use('/api/v1', authRoutes);
 app.use('/api/v1', productRoutes);
 app.use('/api/v1', storeRoutes);
 app.use('/api/v1', userRoutes);
+app.use('/api/v1', reviewRoutes);
+app.use('/api/v1', notificationRoutes);
 
 // Endpoint yang tidak dikenal
 app.use((req, res) => {
@@ -47,6 +51,7 @@ app.use((err, req, res, next) => {
     let message = 'Body terlalu besar';
     if (req.path.endsWith('/image')) message = 'Ukuran gambar maksimal 2 MB';
     if (req.path.endsWith('/payment-proof')) message = 'File harus PNG atau JPG, maksimal 1 MB';
+    if (/\/reviews\/[^/]+\/photos$/.test(req.path)) message = 'Foto harus PNG atau JPG, maksimal 1 MB';
     return sendError(res, 413, 'PAYLOAD_TOO_LARGE', message);
   }
   console.error(err);
