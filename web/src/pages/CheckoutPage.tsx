@@ -3,6 +3,8 @@ import type { FormEvent, ReactNode } from 'react'
 import { ApiError, createOrder, fetchCart, previewCheckout } from '../api'
 import type { Cart, Summary } from '../api'
 import AppShell from '../components/AppShell'
+import GiftCardField from '../components/GiftCardField'
+import ShipDatePicker from '../components/ShipDatePicker'
 import { announceCartCount } from '../cart'
 import { errorMessage, handleUnauthorized } from '../errors'
 import { Link, navigate } from '../router'
@@ -12,7 +14,9 @@ import {
   EMPTY_ADDRESS,
   PAYMENT_OPTIONS,
   SHIPPING_OPTIONS,
+  formatDateLong,
   validateAddress,
+  validateShipDate,
 } from '../validation/checkout'
 import type { AddressField, AddressValues } from '../validation/checkout'
 import { formatRupiah } from '../validation/product'
@@ -63,6 +67,17 @@ function CheckoutContent({ token }: { token: string }) {
   const [payment, setPayment] = useState('')
   const [paymentError, setPaymentError] = useState<string | null>(null)
 
+  const [shipDate, setShipDate] = useState('')
+  const [shipDateTouched, setShipDateTouched] = useState(false)
+  const [shipDateServerError, setShipDateServerError] = useState<string | null>(null)
+
+  const [giftCode, setGiftCode] = useState('')
+  const [giftStatus, setGiftStatus] = useState<'idle' | 'loading' | 'applied' | 'error'>('idle')
+  const [giftMessage, setGiftMessage] = useState('')
+
+  // WarungPay: hasil pembayaran dari iframe (postMessage)
+  const [paid, setPaid] = useState<{ ref: string; amount: number } | null>(null)
+
   const [voucherInput, setVoucherInput] = useState('')
   const [appliedVoucher, setAppliedVoucher] = useState('')
   const [voucherError, setVoucherError] = useState<string | null>(null)
@@ -93,7 +108,7 @@ function CheckoutContent({ token }: { token: string }) {
   useEffect(() => {
     if (!cart || cart.items.length === 0) return
     let cancelled = false
-    previewCheckout(token, shipping || 'reguler', appliedVoucher)
+    previewCheckout(token, shipping || 'reguler', appliedVoucher, giftCode)
       .then((data) => {
         if (!cancelled) setSummary(data)
       })
@@ -102,6 +117,10 @@ function CheckoutContent({ token }: { token: string }) {
         if (err instanceof ApiError && err.fields?.voucherCode) {
           setAppliedVoucher('')
           setVoucherError(err.fields.voucherCode)
+        } else if (err instanceof ApiError && err.fields?.giftCardCode) {
+          setGiftCode('')
+          setGiftStatus('error')
+          setGiftMessage(err.fields.giftCardCode)
         } else {
           setSubmitError(errorMessage(err))
         }
@@ -109,7 +128,42 @@ function CheckoutContent({ token }: { token: string }) {
     return () => {
       cancelled = true
     }
-  }, [token, cart, shipping, appliedVoucher])
+  }, [token, cart, shipping, appliedVoucher, giftCode])
+
+  // Terima pesan dari iframe WarungPay (hanya dari asal yang sama)
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      const data = event.data as { type?: string; paymentRef?: string; amount?: number }
+      if (data?.type === 'warungpay:paid' && data.paymentRef && typeof data.amount === 'number') {
+        setPaid({ ref: data.paymentRef, amount: data.amount })
+        setPaymentError(null)
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [])
+
+  async function applyGiftCard(code: string) {
+    if (!code) {
+      setGiftStatus('error')
+      setGiftMessage(CHECKOUT_MESSAGES.giftCardRequired)
+      return
+    }
+    setGiftStatus('loading')
+    setGiftMessage('')
+    try {
+      const data = await previewCheckout(token, shipping || 'reguler', appliedVoucher, code)
+      setSummary(data)
+      setGiftCode(data.giftCardCode ?? '')
+      setGiftStatus('applied')
+      setGiftMessage(`Gift card ${data.giftCardCode} dipakai: potongan ${formatRupiah(data.giftCardDiscount)}`)
+    } catch (err) {
+      if (handleUnauthorized(err)) return
+      setGiftStatus('error')
+      setGiftMessage(err instanceof ApiError && err.fields?.giftCardCode ? err.fields.giftCardCode : errorMessage(err))
+    }
+  }
 
   const addressErrors = validateAddress(address)
   const addressError = (field: AddressField) =>
@@ -131,9 +185,15 @@ function CheckoutContent({ token }: { token: string }) {
     setStep(2)
   }
 
+  const shipDateError = shipDateServerError ?? (shipDateTouched ? validateShipDate(shipDate) : undefined)
+
   function goToPayment() {
-    if (!shipping) {
-      setShippingError(CHECKOUT_MESSAGES.shippingMethod)
+    setShipDateTouched(true)
+    const dateError = validateShipDate(shipDate)
+    if (!shipping) setShippingError(CHECKOUT_MESSAGES.shippingMethod)
+    if (!shipping || dateError) {
+      if (!shipping) document.getElementById('checkout-shipping-reguler-radio')?.focus()
+      else document.getElementById('checkout-ship-date-input')?.focus()
       return
     }
     setStep(3)
@@ -177,6 +237,10 @@ function CheckoutContent({ token }: { token: string }) {
       setPaymentError(CHECKOUT_MESSAGES.codLimit)
       return
     }
+    if (payment === 'ewallet' && (!paid || (summary && paid.amount !== summary.total))) {
+      setPaymentError(CHECKOUT_MESSAGES.paymentRefRequired)
+      return
+    }
 
     submitLock.current = true
     setSubmitting(true)
@@ -186,6 +250,9 @@ function CheckoutContent({ token }: { token: string }) {
         shippingMethod: shipping,
         paymentMethod: payment,
         voucherCode: appliedVoucher,
+        giftCardCode: giftCode,
+        shipDate,
+        paymentRef: payment === 'ewallet' && paid ? paid.ref : '',
       })
       announceCartCount(0)
       navigate(`/checkout/success/${order.orderNumber}`, true)
@@ -203,7 +270,20 @@ function CheckoutContent({ token }: { token: string }) {
         setShippingError(fields.shippingMethod)
         setStep(2)
       }
+      if (fields.shipDate) {
+        setShipDateServerError(fields.shipDate)
+        setStep(2)
+      }
       if (fields.paymentMethod) setPaymentError(fields.paymentMethod)
+      if (fields.paymentRef) {
+        setPaymentError(fields.paymentRef)
+        setPaid(null)
+      }
+      if (fields.giftCardCode) {
+        setGiftCode('')
+        setGiftStatus('error')
+        setGiftMessage(fields.giftCardCode)
+      }
       if (fields.voucherCode) {
         setVoucherError(fields.voucherCode)
         setAppliedVoucher('')
@@ -245,7 +325,10 @@ function CheckoutContent({ token }: { token: string }) {
 
   const shippingCost = shipping && summary ? summary.shippingCost : null
   const discount = summary?.discount ?? 0
-  const total = summary ? (shipping ? summary.total : summary.subtotal - discount) : cart.subtotal
+  const giftDiscount = summary?.giftCardDiscount ?? 0
+  const total = summary ? (shipping ? summary.total : summary.subtotal - discount - giftDiscount) : cart.subtotal
+  // Pembayaran WarungPay hanya berlaku untuk nominal yang dibayar; kalau total berubah harus bayar ulang
+  const paidForTotal = paid !== null && summary !== null && paid.amount === summary.total
 
   let panel: ReactNode
   if (step === 1) {
@@ -320,6 +403,15 @@ function CheckoutContent({ token }: { token: string }) {
           ))}
         </div>
         <FieldMessage id="checkout-shipping-error" message={shippingError} />
+        <ShipDatePicker
+          value={shipDate}
+          error={shipDateError}
+          onChange={(value) => {
+            setShipDate(value)
+            setShipDateServerError(null)
+            setShipDateTouched(value.length >= 10)
+          }}
+        />
         <div className="form-actions">
           <button type="button" className="btn btn-ghost" id="checkout-shipping-back-btn" data-testid="checkout-shipping-back-btn" onClick={() => setStep(1)}>
             Kembali
@@ -357,6 +449,32 @@ function CheckoutContent({ token }: { token: string }) {
           ))}
         </div>
         <FieldMessage id="checkout-payment-error" message={paymentError} />
+
+        {payment === 'ewallet' && summary && (
+          <div className="warungpay-box" id="checkout-warungpay" data-testid="checkout-warungpay">
+            {paidForTotal ? (
+              <p className="field-success" role="status" id="checkout-warungpay-paid" data-testid="checkout-warungpay-paid">
+                Lunas lewat WarungPay ({paid?.ref}). Lanjutkan dengan Buat pesanan.
+              </p>
+            ) : (
+              <>
+                {paid && (
+                  <p className="field-error" role="alert" id="checkout-warungpay-stale" data-testid="checkout-warungpay-stale">
+                    Total berubah setelah dibayar. Bayar ulang dengan nominal baru.
+                  </p>
+                )}
+                <iframe
+                  key={summary.total}
+                  title="Pembayaran WarungPay"
+                  src={`/warungpay?amount=${summary.total}`}
+                  id="checkout-warungpay-iframe"
+                  data-testid="checkout-warungpay-iframe"
+                  className="warungpay-frame"
+                />
+              </>
+            )}
+          </div>
+        )}
 
         <div className="field">
           <label htmlFor="checkout-voucher-input">Kode voucher</label>
@@ -413,6 +531,18 @@ function CheckoutContent({ token }: { token: string }) {
             )}
           </div>
         </div>
+
+        <GiftCardField
+          status={giftStatus}
+          message={giftMessage}
+          onApply={applyGiftCard}
+          onInput={() => {
+            if (giftStatus === 'error') {
+              setGiftStatus('idle')
+              setGiftMessage('')
+            }
+          }}
+        />
 
         <div className="form-actions">
           <button type="button" className="btn btn-ghost" id="checkout-payment-back-btn" data-testid="checkout-payment-back-btn" onClick={() => setStep(2)}>
@@ -506,6 +636,22 @@ function CheckoutContent({ token }: { token: string }) {
                 <dt>Diskon {summary?.voucherCode}</dt>
                 <dd id="checkout-summary-discount" data-testid="checkout-summary-discount">
                   −{formatRupiah(discount)}
+                </dd>
+              </div>
+            )}
+            {giftDiscount > 0 && (
+              <div>
+                <dt>Gift card</dt>
+                <dd id="checkout-summary-gift-card" data-testid="checkout-summary-gift-card">
+                  −{formatRupiah(giftDiscount)}
+                </dd>
+              </div>
+            )}
+            {shipDate && !validateShipDate(shipDate) && (
+              <div>
+                <dt>Tanggal kirim</dt>
+                <dd id="checkout-summary-ship-date" data-testid="checkout-summary-ship-date">
+                  {formatDateLong(shipDate)}
                 </dd>
               </div>
             )}

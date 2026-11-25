@@ -18,7 +18,18 @@ const VOUCHERS = {
   HEMAT10: { description: 'Diskon 10% (maks Rp 50.000), min. belanja Rp 100.000', type: 'percent', value: 10, max: 50000, minSubtotal: 100000 },
   WARUNG25K: { description: 'Potongan Rp 25.000, min. belanja Rp 150.000', type: 'fixed', value: 25000, minSubtotal: 150000 },
   ONGKIRGRATIS: { description: 'Gratis ongkir, min. belanja Rp 50.000', type: 'shipping', minSubtotal: 50000 },
+  FLASH15: { description: 'Flash sale: diskon 15% (maks Rp 30.000), min. belanja Rp 75.000', type: 'percent', value: 15, max: 30000, minSubtotal: 75000 },
   KADALUARSA: { description: 'Voucher yang sudah kedaluwarsa (untuk latihan)', type: 'expired' },
+};
+
+// Gift card latihan: potongan nominal tetap, dipakai setelah voucher
+const GIFT_CARDS = {
+  'GIFT-7788-WQA': 20000,
+  'GIFT-5000-WQA': 50000,
+};
+
+const GIFT_CARD_MESSAGES = {
+  notFound: 'Kode gift card tidak ditemukan',
 };
 
 const VOUCHER_MESSAGES = {
@@ -54,7 +65,14 @@ function checkVoucher(code, subtotal) {
  * Hitung ringkasan belanja dari item keranjang.
  * items: [{ price, quantity }]
  */
-function computeSummary(items, shippingMethod, voucherCode) {
+function checkGiftCard(code) {
+  const normalized = typeof code === 'string' ? code.trim().toUpperCase() : '';
+  if (!normalized) return { code: null, amount: 0, error: null };
+  if (!GIFT_CARDS[normalized]) return { code: normalized, amount: 0, error: GIFT_CARD_MESSAGES.notFound };
+  return { code: normalized, amount: GIFT_CARDS[normalized], error: null };
+}
+
+function computeSummary(items, shippingMethod, voucherCode, giftCardCode) {
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const shipping = SHIPPING_METHODS[shippingMethod];
@@ -66,14 +84,21 @@ function computeSummary(items, shippingMethod, voucherCode) {
   if (voucher && voucher.type === 'fixed') discount = Math.min(voucher.value, subtotal);
   if (voucher && voucher.type === 'shipping') shippingCost = 0;
 
+  const gift = checkGiftCard(giftCardCode);
+  const beforeGift = subtotal - discount + shippingCost;
+  const giftCardDiscount = Math.min(gift.amount, beforeGift);
+
   return {
     itemCount,
     subtotal,
     shippingCost,
     discount,
-    total: subtotal - discount + shippingCost,
+    giftCardDiscount,
+    total: beforeGift - giftCardDiscount,
     voucherCode: voucher ? code : null,
     voucherError: error,
+    giftCardCode: gift.error ? null : gift.code,
+    giftCardError: gift.error,
   };
 }
 
@@ -83,7 +108,10 @@ module.exports = {
   COD_MAX_TOTAL,
   VOUCHERS,
   VOUCHER_MESSAGES,
+  GIFT_CARDS,
+  GIFT_CARD_MESSAGES,
   checkVoucher,
+  checkGiftCard,
   computeSummary,
   formatRupiah,
 };

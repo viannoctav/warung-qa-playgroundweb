@@ -2,6 +2,7 @@ const express = require('express');
 const { createAuthService } = require('../services/auth-service');
 const authDeps = require('../services/auth-deps');
 const { createStoreService, newOrderNumber } = require('../services/store-service');
+const { createOrderService, newPaymentRef, PROOF_MAX_BYTES } = require('../services/order-service');
 const productRepo = require('../repositories/products');
 const storeRepo = require('../repositories/store');
 const { sendError, sendResult } = require('../http');
@@ -16,6 +17,13 @@ const store = createStoreService({
   ...storeRepo,
   newOrderNumber: () => newOrderNumber(),
 });
+const orders = createOrderService({ ...storeRepo, newPaymentRef: () => newPaymentRef() });
+
+function sendImage(res, result) {
+  if (!result.image) return sendResult(res, result);
+  res.set('Cache-Control', 'private, no-store');
+  return res.type(result.image.type).send(result.image.buffer);
+}
 
 async function requireUser(req, res, next) {
   const user = await auth.authenticate(req.get('authorization'));
@@ -24,7 +32,7 @@ async function requireUser(req, res, next) {
   return next();
 }
 
-router.use(['/store', '/cart', '/checkout', '/orders'], requireUser);
+router.use(['/store', '/cart', '/checkout', '/orders', '/payments', '/admin/orders'], requireUser);
 
 // Katalog toko (hanya produk aktif)
 router.get('/store/products', async (req, res) => sendResult(res, await store.listProducts(req.user, req.query)));
@@ -42,7 +50,45 @@ router.delete('/cart/items/:productId', async (req, res) =>
 // Checkout & pesanan
 router.post('/checkout/preview', async (req, res) => sendResult(res, await store.preview(req.user, req.body)));
 router.post('/orders', async (req, res) => sendResult(res, await store.createOrder(req.user, req.body)));
-router.get('/orders', async (req, res) => sendResult(res, await store.listOrders(req.user)));
+router.get('/orders', async (req, res) => {
+  const { errors, value } = orders.validateDateRange(req.query);
+  if (Object.keys(errors).length > 0) return sendError(res, 400, 'VALIDATION_ERROR', Object.values(errors)[0], errors);
+  return sendResult(res, await store.listOrders(req.user, value));
+});
 router.get('/orders/:orderNumber', async (req, res) => sendResult(res, await store.getOrder(req.user, req.params.orderNumber)));
+router.post('/orders/:orderNumber/cancel', async (req, res) =>
+  sendResult(res, await orders.cancel(req.user, req.params.orderNumber, req.body)));
+router.get('/orders/:orderNumber/tracking', async (req, res) =>
+  sendResult(res, await orders.tracking(req.user, req.params.orderNumber)));
+
+// Bukti transfer: file mentah PNG/JPG maks 1 MB, nama file opsional di header X-File-Name
+const rawProof = express.raw({ type: ['image/png', 'image/jpeg'], limit: PROOF_MAX_BYTES });
+router.put('/orders/:orderNumber/payment-proof', rawProof, async (req, res) => {
+  let fileName = '';
+  try {
+    fileName = decodeURIComponent(req.get('x-file-name') || '');
+  } catch {
+    fileName = '';
+  }
+  sendResult(res, await orders.uploadProof(req.user, req.params.orderNumber, {
+    buffer: req.body,
+    contentType: req.get('content-type'),
+    fileName,
+  }));
+});
+router.get('/orders/:orderNumber/payment-proof', async (req, res) => sendImage(res, await orders.ownProof(req.user, req.params.orderNumber)));
+router.delete('/orders/:orderNumber/payment-proof', async (req, res) =>
+  sendResult(res, await orders.deleteProof(req.user, req.params.orderNumber)));
+
+// WarungPay (pembayaran e-wallet latihan, dipakai di iframe checkout)
+router.post('/payments/warungpay', async (req, res) => sendResult(res, await orders.pay(req.user, req.body)));
+
+// Pesanan toko (admin)
+router.get('/admin/orders', async (req, res) => sendResult(res, await orders.listStore(req.user, req.query)));
+router.get('/admin/orders/:orderNumber', async (req, res) => sendResult(res, await orders.getStore(req.user, req.params.orderNumber)));
+router.patch('/admin/orders/:orderNumber/status', async (req, res) =>
+  sendResult(res, await orders.changeStatus(req.user, req.params.orderNumber, req.body)));
+router.get('/admin/orders/:orderNumber/payment-proof', async (req, res) =>
+  sendImage(res, await orders.storeProof(req.user, req.params.orderNumber)));
 
 module.exports = router;

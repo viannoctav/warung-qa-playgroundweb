@@ -160,12 +160,25 @@ test('PATCH hanya mengecek field yang dikirim; body tanpa field dikenal ditolak'
 });
 
 test('query daftar produk: nilai bawaan dan nilai yang ditolak', () => {
-  assert.deepEqual(validateListQuery({}).value, { search: '', category: '', status: '', sort: 'name', order: 'asc', page: 1, limit: 10 });
+  assert.deepEqual(validateListQuery({}).value, {
+    search: '', category: '', categories: [], minPrice: null, maxPrice: null, status: '', sort: 'name', order: 'asc', page: 1, limit: 10,
+  });
   const bad = validateListQuery({ category: 'rokok', status: 'all', sort: 'id', order: 'up', page: '0', limit: '7' }).errors;
   assert.deepEqual(Object.keys(bad).sort(), ['category', 'limit', 'order', 'page', 'sort', 'status']);
   assert.equal(validateListQuery({ page: '1.5' }).errors.page, 'Halaman harus angka bulat mulai dari 1');
   assert.equal(validateListQuery({ page: ['1', '2'] }).errors.page, 'Halaman harus angka bulat mulai dari 1');
   assert.equal(validateListQuery({ search: 'a'.repeat(101) }).errors.search, 'Pencarian maksimal 100 karakter');
+});
+
+test('query: banyak kategori, rentang harga, sort featured khusus toko', () => {
+  const ok = validateListQuery({ category: 'kopi,teh,kopi', minPrice: '10000', maxPrice: '75000' }).value;
+  assert.deepEqual(ok.categories, ['kopi', 'teh']);
+  assert.equal(ok.minPrice, 10000);
+  assert.equal(validateListQuery({ category: 'kopi,rokok' }).errors.category, 'Kategori tidak dikenal');
+  assert.equal(validateListQuery({ minPrice: '50000', maxPrice: '1000' }).errors.maxPrice, 'Harga minimum tidak boleh lebih dari maksimum');
+  assert.equal(validateListQuery({ minPrice: '-1' }).errors.minPrice, 'Harga filter harus angka 0–10.000.000');
+  assert.ok(validateListQuery({ sort: 'featured' }).errors.sort);
+  assert.deepEqual(validateListQuery({ sort: 'featured' }, { extraSorts: ['featured'] }).errors, {});
 });
 
 test('ids bulk-delete: 1–50 bilangan bulat positif', () => {
@@ -353,4 +366,61 @@ test('upload gambar ditolak: format, file kosong, isi palsu, terlalu besar, prod
   await svc.list(OTHER_ADMIN, {});
   assert.equal((await svc.setImage(OTHER_ADMIN, id, { buffer: PNG, contentType: 'image/png' })).status, 404);
   assert.equal((await svc.getImage('abc')).status, 404);
+});
+
+// ---------- Produk unggulan & riwayat stok ----------
+
+function setupExtras() {
+  const { repo } = setup();
+  const movements = [];
+  let featured = [];
+  Object.assign(repo, {
+    recordStockMovement: async (ownerId, product, change, reason, ref) => movements.push({ ownerId, productId: product.id, change, reason, ref, stockAfter: product.stock }),
+    countOwnedProducts: async (ownerId, ids) => {
+      let n = 0;
+      for (const id of ids) if (await repo.getProduct(ownerId, id)) n += 1;
+      return n;
+    },
+    setFeatured: async (ownerId, ids) => {
+      featured = ids;
+      return ids.map((id) => ({ id }));
+    },
+    listFeatured: async () => featured.map((id) => ({ id })),
+    listStockMovements: async (ownerId, q) => ({ total: movements.length, items: movements.slice(0, q.limit), nextCursor: null, q }),
+  });
+  return { repo, svc: createProductService(repo), movements };
+}
+
+test('perubahan stok oleh admin tercatat di riwayat stok', async () => {
+  const { svc, movements } = setupExtras();
+  const first = (await svc.list(ADMIN, {})).body.data[0];
+  await svc.patch(ADMIN, String(first.id), { stock: first.stock + 5 });
+  await svc.patch(ADMIN, String(first.id), { name: 'Nama Baru Saja' });
+  const created = await svc.create(ADMIN, validInput());
+  assert.deepEqual(movements.map((m) => [m.change, m.reason]), [[5, 'admin'], [20, 'admin']]);
+  assert.equal(movements[0].ref, 'Diubah admin_user');
+  assert.equal(movements[1].productId, created.body.data.id);
+});
+
+test('produk unggulan: maks 6, tidak dobel, harus milik akun ini', async () => {
+  const { svc } = setupExtras();
+  const ids = (await svc.list(ADMIN, { limit: '10' })).body.data.map((p) => p.id);
+  assert.equal((await svc.setFeatured(ADMIN, { ids: ids.slice(0, 7) })).body.error.message, 'Maksimal 6 produk unggulan');
+  assert.equal((await svc.setFeatured(ADMIN, { ids: [ids[0], ids[0]] })).body.error.message, 'Produk unggulan tidak boleh dobel');
+  assert.equal((await svc.setFeatured(ADMIN, { ids: ['1'] })).body.error.message, 'ids harus berupa daftar id produk');
+  assert.equal((await svc.setFeatured(ADMIN, { ids: [ids[0], 99999] })).status, 404);
+  const ok = await svc.setFeatured(ADMIN, { ids: [ids[2], ids[0]] });
+  assert.deepEqual(ok.body.data.map((p) => p.id), [ids[2], ids[0]]);
+  assert.equal((await svc.setFeatured(ADMIN, { ids: [] })).status, 200);
+  assert.equal((await svc.setFeatured(VIEWER, { ids: [] })).status, 403);
+});
+
+test('riwayat stok: validasi cursor, limit, reason', async () => {
+  const { svc } = setupExtras();
+  const bad = await svc.stockMovements(ADMIN, { cursor: 'abc', limit: '500', reason: 'hilang', productId: 'x' });
+  assert.deepEqual(Object.keys(bad.body.error.fields).sort(), ['cursor', 'limit', 'productId', 'reason']);
+  const ok = await svc.stockMovements(ADMIN, { cursor: '120', reason: 'order' });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(ok.body.meta, { total: 0, nextCursor: null });
+  assert.equal((await svc.stockMovements(VIEWER, {})).status, 403);
 });

@@ -113,7 +113,7 @@ const SORTS = ['name', 'price', 'stock', 'createdAt'];
 const LIMITS = [5, 10, 20, 50];
 
 // Validasi query string GET /products. Semua nilai datang sebagai teks.
-function validateListQuery(query, { limits = LIMITS, defaultLimit = '10' } = {}) {
+function validateListQuery(query, { limits = LIMITS, defaultLimit = '10', extraSorts = [], defaultSort = 'name' } = {}) {
   const q = query && typeof query === 'object' ? query : {};
   const errors = {};
   const read = (key) => (q[key] === undefined ? '' : q[key]);
@@ -122,14 +122,30 @@ function validateListQuery(query, { limits = LIMITS, defaultLimit = '10' } = {})
   if (typeof search !== 'string') errors.search = 'Pencarian harus berupa teks';
   else if (search.length > 100) errors.search = 'Pencarian maksimal 100 karakter';
 
+  // category boleh lebih dari satu, dipisah koma: category=kopi,teh
   const category = read('category');
-  if (category !== '' && !CATEGORY_VALUES.includes(category)) errors.category = 'Kategori tidak dikenal';
+  const categories = typeof category === 'string' && category !== '' ? [...new Set(category.split(',').map((c) => c.trim()))] : [];
+  if (typeof category !== 'string' || categories.some((c) => !CATEGORY_VALUES.includes(c))) errors.category = 'Kategori tidak dikenal';
+
+  const readPrice = (key) => {
+    const raw = read(key);
+    if (raw === '') return null;
+    if (typeof raw !== 'string' || !/^\d+$/.test(raw) || Number(raw) > 10000000) {
+      errors[key] = 'Harga filter harus angka 0–10.000.000';
+      return null;
+    }
+    return Number(raw);
+  };
+  const minPrice = readPrice('minPrice');
+  const maxPrice = readPrice('maxPrice');
+  if (minPrice !== null && maxPrice !== null && minPrice > maxPrice) errors.maxPrice = 'Harga minimum tidak boleh lebih dari maksimum';
 
   const status = read('status');
   if (status !== '' && status !== 'active' && status !== 'inactive') errors.status = 'Status harus active atau inactive';
 
-  const sort = read('sort') || 'name';
-  if (!SORTS.includes(sort)) errors.sort = 'Sort harus name, price, stock, atau createdAt';
+  const sort = read('sort') || defaultSort;
+  const sorts = [...SORTS, ...extraSorts];
+  if (!sorts.includes(sort)) errors.sort = `Sort harus ${sorts.slice(0, -1).join(', ')}, atau ${sorts[sorts.length - 1]}`;
 
   const order = read('order') || 'asc';
   if (order !== 'asc' && order !== 'desc') errors.order = 'Order harus asc atau desc';
@@ -148,7 +164,10 @@ function validateListQuery(query, { limits = LIMITS, defaultLimit = '10' } = {})
     errors,
     value: {
       search: typeof search === 'string' ? search.trim() : '',
-      category,
+      category: categories.length === 1 ? categories[0] : '',
+      categories,
+      minPrice,
+      maxPrice,
       status,
       sort,
       order,

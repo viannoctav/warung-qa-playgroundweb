@@ -5,6 +5,7 @@ import { clearSession } from '../auth'
 import AppShell from '../components/AppShell'
 import ConfirmModal from '../components/ConfirmModal'
 import ProductImage from '../components/ProductImage'
+import ProductTabs from '../components/ProductTabs'
 import { Link, Redirect, navigate } from '../router'
 import { showToast } from '../toast'
 import { CATEGORY_OPTIONS, categoryLabel, formatRupiah } from '../validation/product'
@@ -203,6 +204,8 @@ function ProductsContent({ token, canManage, reloadSignal }: { token: string; ca
           Tambah produk
         </Link>
       </div>
+
+      <ProductTabs />
 
       <div className="toolbar">
         <div className="field toolbar-search">

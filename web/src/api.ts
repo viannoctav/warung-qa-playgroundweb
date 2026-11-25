@@ -24,6 +24,7 @@ type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
   token?: string
+  headers?: Record<string, string>
   // File mentah (misalnya gambar) dikirim apa adanya, bukan JSON
   file?: Blob
 }
@@ -35,6 +36,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     'Content-Type': options.file ? options.file.type || 'application/octet-stream' : 'application/json',
   }
   if (options.token) headers.Authorization = `Bearer ${options.token}`
+  Object.assign(headers, options.headers ?? {})
 
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -200,6 +202,9 @@ export async function deleteProductImage(token: string, id: number) {
 export type StoreQuery = {
   search: string
   category: string
+  categories?: string[]
+  minPrice?: number | null
+  maxPrice?: number | null
   sort: string
   order: string
   page: number
@@ -209,7 +214,10 @@ export type StoreQuery = {
 export function fetchStoreProducts(token: string, query: StoreQuery) {
   const params = new URLSearchParams()
   if (query.search) params.set('search', query.search)
-  if (query.category) params.set('category', query.category)
+  const categories = query.categories && query.categories.length > 0 ? query.categories.join(',') : query.category
+  if (categories) params.set('category', categories)
+  if (query.minPrice !== undefined && query.minPrice !== null) params.set('minPrice', String(query.minPrice))
+  if (query.maxPrice !== undefined && query.maxPrice !== null) params.set('maxPrice', String(query.maxPrice))
   params.set('sort', query.sort)
   params.set('order', query.order)
   params.set('page', String(query.page))
@@ -258,8 +266,10 @@ export type Summary = {
   subtotal: number
   shippingCost: number
   discount: number
+  giftCardDiscount: number
   total: number
   voucherCode: string | null
+  giftCardCode: string | null
 }
 
 export type CheckoutInput = {
@@ -272,27 +282,44 @@ export type CheckoutInput = {
   shippingMethod: string
   paymentMethod: string
   voucherCode: string
+  giftCardCode: string
+  shipDate: string
+  paymentRef: string
 }
 
 export type OrderItem = { productId: number | null; sku: string; name: string; price: number; quantity: number; subtotal: number }
 
-export type Order = Omit<CheckoutInput, 'voucherCode'> & {
+export type OrderStatus = 'diproses' | 'dikirim' | 'selesai' | 'dibatalkan'
+export type OrderHistory = { status: OrderStatus; actor: string; note: string; createdAt: string }
+
+export type Order = Omit<CheckoutInput, 'voucherCode' | 'giftCardCode' | 'paymentRef'> & {
   orderNumber: string
-  status: string
+  status: OrderStatus
+  buyer?: string
   voucherCode: string
+  giftCardCode: string | null
+  giftCardDiscount: number
+  paymentRef: string | null
+  courier: string | null
+  trackingNumber: string | null
+  cancelReason: string | null
+  cancelNote: string | null
+  paymentProof: { name: string; type: string; size: number; uploadedAt: string } | null
   shippingCost: number
   subtotal: number
   discount: number
   total: number
   createdAt: string
+  updatedAt?: string
   itemCount?: number
   items?: OrderItem[]
+  history?: OrderHistory[]
 }
 
-export async function previewCheckout(token: string, shippingMethod: string, voucherCode: string) {
+export async function previewCheckout(token: string, shippingMethod: string, voucherCode: string, giftCardCode = '') {
   const result = await request<{ data: Summary }>('/checkout/preview', {
     method: 'POST',
-    body: { shippingMethod, voucherCode },
+    body: { shippingMethod, voucherCode, giftCardCode },
     token,
   })
   return result.data
@@ -303,12 +330,196 @@ export async function createOrder(token: string, input: CheckoutInput) {
   return result.data
 }
 
-export async function fetchOrders(token: string) {
-  const result = await request<{ data: Order[] }>('/orders', { token })
+export async function fetchOrders(token: string, range: { from?: string; to?: string } = {}) {
+  const params = new URLSearchParams()
+  if (range.from) params.set('from', range.from)
+  if (range.to) params.set('to', range.to)
+  const query = params.toString()
+  const result = await request<{ data: Order[] }>(`/orders${query ? `?${query}` : ''}`, { token })
   return result.data
 }
 
 export async function fetchOrder(token: string, orderNumber: string) {
   const result = await request<{ data: Order }>(`/orders/${encodeURIComponent(orderNumber)}`, { token })
   return result.data
+}
+
+// ---------- Kelola User (admin) ----------
+
+export type AdminUser = {
+  id: number
+  username: string
+  fullName: string
+  email: string
+  phone: string | null
+  birthDate: string | null
+  gender: string | null
+  role: 'user' | 'admin'
+  isDemo: boolean
+  createdAt: string
+  expiresAt: string | null
+}
+
+export type UserQuery = {
+  search: string
+  role: string
+  type: string
+  sort: string
+  order: string
+  page: number
+  limit: number
+}
+
+export type UserProfileInput = Partial<Pick<AdminUser, 'fullName' | 'username' | 'email' | 'phone' | 'birthDate' | 'gender'>>
+
+export function fetchUsers(token: string, query: UserQuery) {
+  const params = new URLSearchParams()
+  if (query.search) params.set('search', query.search)
+  if (query.role) params.set('role', query.role)
+  if (query.type) params.set('type', query.type)
+  params.set('sort', query.sort)
+  params.set('order', query.order)
+  params.set('page', String(query.page))
+  params.set('limit', String(query.limit))
+  return request<{ data: AdminUser[]; meta: ProductListResult['meta'] }>(`/users?${params.toString()}`, { token })
+}
+
+export async function fetchUser(token: string, id: number) {
+  const result = await request<{ data: AdminUser }>(`/users/${id}`, { token })
+  return result.data
+}
+
+export async function updateUser(token: string, id: number, input: UserProfileInput) {
+  const result = await request<{ data: AdminUser }>(`/users/${id}`, { method: 'PATCH', body: input, token })
+  return result.data
+}
+
+export async function changeUserPassword(token: string, id: number, newPassword: string, confirmPassword: string) {
+  await request<{ data: { message: string } }>(`/users/${id}/password`, {
+    method: 'PUT',
+    body: { newPassword, confirmPassword },
+    token,
+  })
+}
+
+export async function deleteUser(token: string, id: number) {
+  await request<null>(`/users/${id}`, { method: 'DELETE', token })
+}
+
+export async function bulkDeleteUsers(token: string, ids: number[]) {
+  const result = await request<{ data: { deleted: number } }>('/users/bulk-delete', { method: 'POST', body: { ids }, token })
+  return result.data.deleted
+}
+
+// ---------- Status pesanan, bukti transfer, lacak paket ----------
+
+export type CancelInput = { reason: string; note: string }
+
+export async function cancelOrder(token: string, orderNumber: string, input: CancelInput) {
+  const result = await request<{ data: Order }>(`/orders/${encodeURIComponent(orderNumber)}/cancel`, { method: 'POST', body: input, token })
+  return result.data
+}
+
+export async function uploadPaymentProof(token: string, orderNumber: string, file: File) {
+  const result = await request<{ data: Order }>(`/orders/${encodeURIComponent(orderNumber)}/payment-proof`, {
+    method: 'PUT',
+    file,
+    token,
+    headers: { 'X-File-Name': encodeURIComponent(file.name) },
+  })
+  return result.data
+}
+
+export async function deletePaymentProof(token: string, orderNumber: string) {
+  await request<null>(`/orders/${encodeURIComponent(orderNumber)}/payment-proof`, { method: 'DELETE', token })
+}
+
+// Gambar yang butuh token tidak bisa langsung dipakai di <img src>: ambil sebagai blob lalu buat URL lokal
+export async function fetchImageUrl(token: string, path: string) {
+  const response = await fetch(`/api/v1${path}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!response.ok) throw new ApiError(response.status, 'NOT_FOUND', 'Gambar tidak ditemukan')
+  return URL.createObjectURL(await response.blob())
+}
+
+export type TrackingEvent = { time: string; location: string; description: string }
+export type Tracking = { orderNumber: string; courier: string; trackingNumber: string; status: OrderStatus; events: TrackingEvent[] }
+
+export async function fetchTracking(token: string, orderNumber: string) {
+  const result = await request<{ data: Tracking }>(`/orders/${encodeURIComponent(orderNumber)}/tracking`, { token })
+  return result.data
+}
+
+export async function payWarungPay(token: string, phone: string, pin: string, amount: number) {
+  const result = await request<{ data: { paymentRef: string; amount: number; paidAt: string } }>('/payments/warungpay', {
+    method: 'POST',
+    body: { phone, pin, amount },
+    token,
+  })
+  return result.data
+}
+
+// ---------- Pesanan toko (admin) ----------
+
+export type StoreOrderQuery = { status: string; search: string; sort: string; order: string; page: number; limit: number }
+export type StoreOrderCounts = { all: number; diproses: number; dikirim: number; selesai: number; dibatalkan: number }
+
+export function fetchStoreOrders(token: string, query: StoreOrderQuery) {
+  const params = new URLSearchParams()
+  if (query.status) params.set('status', query.status)
+  if (query.search) params.set('search', query.search)
+  params.set('sort', query.sort)
+  params.set('order', query.order)
+  params.set('page', String(query.page))
+  params.set('limit', String(query.limit))
+  return request<{ data: Order[]; meta: ProductListResult['meta'] & { counts: StoreOrderCounts } }>(`/admin/orders?${params.toString()}`, { token })
+}
+
+export async function fetchStoreOrder(token: string, orderNumber: string) {
+  const result = await request<{ data: Order }>(`/admin/orders/${encodeURIComponent(orderNumber)}`, { token })
+  return result.data
+}
+
+export type StatusChange =
+  | { status: 'dikirim'; courier: string; trackingNumber: string }
+  | { status: 'selesai' }
+  | { status: 'dibatalkan'; reason: string; note: string }
+
+export async function changeOrderStatus(token: string, orderNumber: string, change: StatusChange) {
+  const result = await request<{ data: Order }>(`/admin/orders/${encodeURIComponent(orderNumber)}/status`, {
+    method: 'PATCH',
+    body: change,
+    token,
+  })
+  return result.data
+}
+
+// ---------- Produk unggulan & riwayat stok (admin) ----------
+
+export async function fetchFeatured(token: string) {
+  const result = await request<{ data: Product[] }>('/products/featured', { token })
+  return result.data
+}
+
+export async function saveFeatured(token: string, ids: number[]) {
+  const result = await request<{ data: Product[] }>('/products/featured', { method: 'PUT', body: { ids }, token })
+  return result.data
+}
+
+export type StockMovement = {
+  id: number
+  productId: number
+  productName: string
+  change: number
+  reason: 'order' | 'cancel' | 'admin' | 'restock' | 'offline'
+  ref: string
+  stockAfter: number
+  createdAt: string
+}
+
+export function fetchStockMovements(token: string, query: { cursor: string | null; productId: string; reason: string }) {
+  const params = new URLSearchParams({ limit: '50' })
+  if (query.cursor) params.set('cursor', query.cursor)
+  if (query.productId) params.set('productId', query.productId)
+  if (query.reason) params.set('reason', query.reason)
+  return request<{ data: StockMovement[]; meta: { total: number; nextCursor: string | null } }>(`/stock-movements?${params.toString()}`, { token })
 }

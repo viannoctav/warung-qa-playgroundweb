@@ -1,6 +1,7 @@
 const { validateListQuery } = require('../validation/product');
 const { validateCheckout, isQuantity, MESSAGES } = require('../validation/checkout');
 const { SHIPPING_METHODS, COD_MAX_TOTAL, computeSummary, formatRupiah } = require('../store/pricing');
+const { publicOrder } = require('./order-service');
 
 const STORE_LIMITS = [12, 24, 48];
 
@@ -16,6 +17,9 @@ const TEXT = {
   stockChanged: 'Stok berubah saat checkout. Periksa keranjang Anda lalu coba lagi.',
   codLimit: `COD hanya untuk total maksimal ${formatRupiah(COD_MAX_TOTAL)}`,
   voucherInvalid: 'Voucher tidak bisa dipakai',
+  paymentNotFound: 'Pembayaran WarungPay tidak ditemukan',
+  paymentUsed: 'Pembayaran WarungPay ini sudah dipakai untuk pesanan lain',
+  paymentAmount: 'Nominal pembayaran tidak sama dengan total pesanan',
 };
 
 function fail(status, code, message, fields) {
@@ -91,7 +95,7 @@ function createStoreService(deps) {
   // ---------- Katalog toko ----------
 
   async function listProducts(user, query) {
-    const { errors, value } = validateListQuery(query, { limits: STORE_LIMITS, defaultLimit: '12' });
+    const { errors, value } = validateListQuery(query, { limits: STORE_LIMITS, defaultLimit: '12', extraSorts: ['featured'] });
     delete errors.status; // pembeli selalu hanya melihat produk aktif
     if (Object.keys(errors).length > 0) return fail(400, 'VALIDATION_ERROR', 'Parameter tidak valid', errors);
 
@@ -180,13 +184,14 @@ function createStoreService(deps) {
   // ---------- Checkout ----------
 
   // Hitung ringkasan; null kalau keranjang kosong
-  async function summarize(user, ownerId, shippingMethod, voucherCode) {
+  async function summarize(user, ownerId, shippingMethod, voucherCode, giftCardCode) {
     const cart = await cartData(user, ownerId);
     if (cart.items.length === 0) return null;
     const summary = computeSummary(
       cart.items.map((item) => ({ price: item.product.price, quantity: item.quantity })),
       shippingMethod,
       voucherCode,
+      giftCardCode,
     );
     return { cart, summary };
   }
@@ -199,26 +204,41 @@ function createStoreService(deps) {
     }
 
     return withStore(user, async (ownerId) => {
-      const result = await summarize(user, ownerId, shippingMethod, input.voucherCode);
+      const result = await summarize(user, ownerId, shippingMethod, input.voucherCode, input.giftCardCode);
       if (!result) return fail(400, 'CART_EMPTY', TEXT.cartEmpty);
-      const { voucherError, ...summary } = result.summary;
-      if (voucherError) return fail(400, 'VALIDATION_ERROR', voucherError, { voucherCode: voucherError });
+      const { voucherError, giftCardError, ...summary } = result.summary;
+      const fields = {};
+      if (voucherError) fields.voucherCode = voucherError;
+      if (giftCardError) fields.giftCardCode = giftCardError;
+      if (Object.keys(fields).length > 0) return fail(400, 'VALIDATION_ERROR', Object.values(fields)[0], fields);
       return { status: 200, body: { data: summary } };
     });
   }
 
   async function createOrder(user, body) {
-    const { errors, value } = validateCheckout(body);
+    const { errors, value } = validateCheckout(body, deps.now ? deps.now() : new Date());
     if (Object.keys(errors).length > 0) return fail(400, 'VALIDATION_ERROR', MESSAGES.formInvalid, errors);
 
     return withStore(user, async (ownerId) => {
-      const result = await summarize(user, ownerId, value.shippingMethod, value.voucherCode);
+      const result = await summarize(user, ownerId, value.shippingMethod, value.voucherCode, value.giftCardCode);
       if (!result) return fail(400, 'CART_EMPTY', TEXT.cartEmpty);
       const { cart, summary } = result;
 
       if (cart.hasProblem) return fail(422, 'CART_PROBLEM', TEXT.cartProblem);
       if (summary.voucherError) {
         return fail(400, 'VALIDATION_ERROR', summary.voucherError, { voucherCode: summary.voucherError });
+      }
+      if (summary.giftCardError) {
+        return fail(400, 'VALIDATION_ERROR', summary.giftCardError, { giftCardCode: summary.giftCardError });
+      }
+      // E-wallet: harus sudah dibayar lewat WarungPay dengan nominal yang sama persis
+      if (value.paymentMethod === 'ewallet') {
+        const payment = await deps.findPayment(value.paymentRef, user.id);
+        if (!payment) return fail(400, 'VALIDATION_ERROR', TEXT.paymentNotFound, { paymentRef: TEXT.paymentNotFound });
+        if (payment.used) return fail(409, 'PAYMENT_USED', TEXT.paymentUsed, { paymentRef: TEXT.paymentUsed });
+        if (payment.amount !== summary.total) {
+          return fail(400, 'VALIDATION_ERROR', TEXT.paymentAmount, { paymentRef: TEXT.paymentAmount });
+        }
       }
       if (value.paymentMethod === 'cod' && summary.total > COD_MAX_TOTAL) {
         return fail(400, 'VALIDATION_ERROR', TEXT.codLimit, { paymentMethod: TEXT.codLimit });
@@ -227,12 +247,13 @@ function createStoreService(deps) {
       try {
         const order = await deps.createOrder({
           buyerId: user.id,
+          buyerUsername: user.username,
           ownerId,
           orderNumber: deps.newOrderNumber(),
-          checkout: value,
+          checkout: { ...value, paymentRef: value.paymentMethod === 'ewallet' ? value.paymentRef : '' },
           summary,
         });
-        return { status: 201, body: { data: order } };
+        return { status: 201, body: { data: publicOrder(order) } };
       } catch (err) {
         // Stok dibeli orang lain di saat yang sama: CHECK (stock >= 0) menggagalkan transaksi
         if (err && err.code === '23514') return fail(409, 'STOCK_CHANGED', TEXT.stockChanged);
@@ -243,14 +264,14 @@ function createStoreService(deps) {
 
   // ---------- Pesanan ----------
 
-  async function listOrders(user) {
-    return { status: 200, body: { data: await deps.listOrders(user.id) } };
+  async function listOrders(user, range = {}) {
+    return { status: 200, body: { data: await deps.listOrders(user.id, range) } };
   }
 
   async function getOrder(user, orderNumber) {
     const order = await deps.getOrder(user.id, String(orderNumber || ''));
     if (!order) return fail(404, 'NOT_FOUND', TEXT.orderNotFound);
-    return { status: 200, body: { data: order } };
+    return { status: 200, body: { data: publicOrder(order) } };
   }
 
   return {

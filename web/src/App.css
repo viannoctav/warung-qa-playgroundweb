@@ -1813,3 +1813,1267 @@ a.btn {
   border-color: var(--pass);
   color: #04140c;
 }
+
+/* ================= Kelola User ================= */
+.row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.pill-admin {
+  background: rgb(253 129 1 / 14%);
+  color: var(--accent-hover);
+}
+
+.form-card + .form-card {
+  margin-top: 24px;
+}
+
+.form-card h2 {
+  margin: 0 0 16px;
+  font-size: 1.1rem;
+}
+
+.form-card > .hint {
+  margin: -8px 0 16px;
+}
+
+.danger-zone {
+  border-color: rgb(255 107 114 / 35%);
+}
+
+.danger-zone p {
+  margin: 0 0 16px;
+}
+
+.field input[readonly] {
+  color: var(--muted);
+  cursor: default;
+}
+
+.page.page-wide {
+  max-width: 1320px;
+}
+
+#users-table td[data-testid^='users-cell-created'],
+#users-table td[data-testid^='users-cell-expires'],
+#users-table .col-actions {
+  white-space: nowrap;
+}
+
+/* ================= Menu akun (hover + keyboard) ================= */
+.account-menu {
+  position: relative;
+}
+
+.account-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.94rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.account-menu-btn[aria-expanded='true'],
+.account-menu-btn:hover {
+  border-color: var(--accent);
+}
+
+.account-menu-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.account-menu-btn .badge {
+  margin-left: 0;
+}
+
+.account-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+  min-width: 220px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--raised);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 45%);
+}
+
+/* jembatan tak terlihat supaya kursor bisa turun ke menu tanpa menutupnya */
+.account-menu-list::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -8px;
+  height: 8px;
+}
+
+.account-menu-list button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-menu-list button:hover,
+.account-menu-list button:focus-visible {
+  background: var(--line);
+  outline: none;
+}
+
+.account-menu-list button:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.account-menu-list .is-danger {
+  color: var(--fail);
+}
+
+.account-menu-sep {
+  height: 1px;
+  margin: 6px 0;
+  background: var(--line);
+}
+
+@media (max-width: 1180px) {
+  .app-header {
+    flex-wrap: wrap;
+    height: auto;
+    padding-top: 10px;
+    row-gap: 0;
+  }
+
+  .app-nav {
+    order: 3;
+    width: 100%;
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .app-nav-link {
+    height: 44px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .account-menu-btn #header-username {
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* =====================================================================
+   Fase 5: status pesanan, widget latihan, halaman dokumen
+   ===================================================================== */
+
+.account-menu-caret {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.field-hint {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--focus);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.btn.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.order-number-title {
+  font-size: 1.35rem;
+  word-break: break-all;
+}
+
+.side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.panel-section {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.panel-section h2 {
+  margin-bottom: 12px;
+}
+
+/* ---------- Pill status pesanan ---------- */
+.status-pill {
+  --tone: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--tone) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+  color: var(--tone);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-pill::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-diproses { --tone: #f2c14e; }
+.status-dikirim { --tone: #6ea8ff; }
+.status-selesai { --tone: #42d392; }
+.status-dibatalkan { --tone: #ff6b72; }
+
+/* ---------- Timeline status ---------- */
+.timeline,
+.tracking-list {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-step,
+.tracking-list li {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  padding: 0 0 18px;
+}
+
+.timeline-step:not(:last-child)::after,
+.tracking-list li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 16px;
+  bottom: 0;
+  left: 6px;
+  width: 2px;
+  background: var(--line);
+}
+
+.timeline-dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 4px;
+  border: 2px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.timeline-step.is-done .timeline-dot {
+  border-color: var(--tone);
+  background: var(--tone);
+}
+
+.timeline-step.is-now .timeline-dot {
+  border-color: var(--tone);
+  background: var(--tone);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone) 25%, transparent);
+}
+
+.timeline-step.is-todo strong {
+  color: var(--muted);
+}
+
+.timeline-meta {
+  font-size: 0.85rem;
+}
+
+.timeline-note {
+  margin-top: 2px;
+  font-size: 0.9rem;
+}
+
+.tracking-list li .timeline-dot {
+  border-color: var(--line-strong);
+}
+
+.tracking-list li.is-latest .timeline-dot {
+  border-color: #6ea8ff;
+  background: #6ea8ff;
+}
+
+/* ---------- Tab (status pesanan toko & Kelola Produk) ---------- */
+.status-tabs,
+.page-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+
+.status-tab,
+.page-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.status-tab:hover,
+.page-tab:hover {
+  color: var(--text);
+}
+
+.status-tab.is-active,
+.page-tab.is-active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+.status-tab:focus-visible,
+.page-tab:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.tab-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.status-tab.is-active .tab-count {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ---------- Filter tanggal Pesanan saya ---------- */
+.filter-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 20px;
+  margin-bottom: 20px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-chip {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.filter-chip.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.filter-chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.date-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.date-range .field {
+  margin: 0;
+}
+
+.filter-card .field-message {
+  flex-basis: 100%;
+  min-height: 0;
+}
+
+/* ---------- Upload bukti transfer ---------- */
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 24px 16px;
+  border: 2px dashed var(--line-strong);
+  border-radius: 10px;
+  background: var(--raised);
+  text-align: center;
+}
+
+.dropzone.is-dragging {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--raised));
+}
+
+.dropzone:focus-within {
+  border-color: var(--focus);
+}
+
+.visually-hidden-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.proof-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.proof-file img,
+.proof-thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--raised);
+}
+
+.proof-file-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* ---------- Toko: filter samping ---------- */
+.shop-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.shop-filters {
+  position: sticky;
+  top: 88px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.shop-filters .field {
+  margin: 0;
+}
+
+.shop-results {
+  min-width: 0;
+}
+
+/* multi-select kategori */
+.multi-select {
+  position: relative;
+}
+
+.multi-select-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--raised);
+  cursor: text;
+}
+
+.multi-select-box.is-open,
+.multi-select-box:focus-within {
+  border-color: var(--focus);
+}
+
+.multi-select-box input {
+  flex: 1;
+  min-width: 80px;
+  min-height: 30px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.chip button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.chip button:hover,
+.chip button:focus-visible {
+  background: var(--line-strong);
+  color: var(--text);
+}
+
+.multi-select-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 260px;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 40%);
+  list-style: none;
+}
+
+.multi-select-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.multi-select-list li.is-active,
+.multi-select-list li:hover {
+  background: var(--raised);
+}
+
+.multi-select-list .multi-select-empty {
+  color: var(--muted);
+  cursor: default;
+}
+
+.multi-select-check {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.multi-select-check.is-checked {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* slider harga dua ujung */
+.price-range {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.price-range legend {
+  margin-bottom: 10px;
+  padding: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.price-range-track {
+  position: relative;
+  height: 28px;
+}
+
+.price-range-track::before,
+.price-range-fill {
+  content: '';
+  position: absolute;
+  top: 12px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.price-range-track::before {
+  right: 0;
+  left: 0;
+  background: var(--line-strong);
+}
+
+.price-range-fill {
+  background: var(--accent);
+}
+
+.price-range-track input[type='range'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  appearance: none;
+}
+
+.price-range-track input[type='range']::-webkit-slider-thumb {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: auto;
+  cursor: pointer;
+  appearance: none;
+}
+
+.price-range-track input[type='range']::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.price-range-track input[type='range']:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.price-range-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.price-range-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.price-range-inputs input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+}
+
+/* flash sale */
+.flash-sale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+}
+
+.flash-sale-text {
+  flex: 1 1 280px;
+}
+
+.flash-sale-wait,
+.flash-sale-code {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.flash-sale-code code {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.spinner-dot {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: wqa-spin 0.8s linear infinite;
+}
+
+@keyframes wqa-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner-dot {
+    animation: none;
+  }
+}
+
+/* ---------- Checkout: kalender tanggal kirim ---------- */
+.ship-date {
+  position: relative;
+}
+
+.calendar {
+  position: absolute;
+  z-index: 20;
+  top: 76px;
+  left: 0;
+  width: min(320px, 100%);
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 45%);
+}
+
+.calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.calendar-nav {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.calendar-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.calendar-weekdays span {
+  padding: 4px 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  min-height: 36px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.calendar-day:hover:not(:disabled) {
+  background: var(--raised);
+}
+
+.calendar-day:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.calendar-day.is-today {
+  border-color: var(--line-strong);
+}
+
+.calendar-day.is-selected {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.calendar-day:disabled {
+  color: var(--line-strong);
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+/* ---------- Checkout: WarungPay (iframe) ---------- */
+.warungpay-box {
+  margin: 4px 0 20px;
+}
+
+.warungpay-frame {
+  display: block;
+  width: 100%;
+  height: 440px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: #f6f8fc;
+}
+
+/* halaman di dalam iframe: sengaja terang, seperti situs pihak ketiga */
+.warungpay {
+  min-height: 100vh;
+  padding: 20px;
+  background: #f6f8fc;
+  color: #13203b;
+  color-scheme: light;
+}
+
+.warungpay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #d6dcea;
+}
+
+.warungpay-head strong {
+  color: #1f5fd1;
+  font-size: 1.15rem;
+}
+
+.warungpay-amount {
+  margin: 14px 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.warungpay form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 380px;
+}
+
+.warungpay label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.warungpay input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #b7c1d8;
+  border-radius: 8px;
+  background: #fff;
+  color: #13203b;
+  font: inherit;
+}
+
+.warungpay input:focus-visible {
+  outline: 2px solid #1f5fd1;
+  outline-offset: 1px;
+}
+
+.warungpay button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: #1f5fd1;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.warungpay button:disabled {
+  opacity: 0.6;
+}
+
+.warungpay-error {
+  margin: 0;
+  color: #c42b36;
+  font-size: 0.85rem;
+}
+
+.warungpay-success {
+  padding: 14px;
+  border-radius: 8px;
+  background: #e2f6ec;
+  color: #0b5a35;
+}
+
+.warungpay-note {
+  margin: 0;
+  color: #5b6782;
+  font-size: 0.8rem;
+}
+
+/* ---------- Kelola Produk: unggulan & riwayat stok ---------- */
+.featured-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.featured-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.featured-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--raised);
+  cursor: grab;
+}
+
+.featured-item.is-dragging {
+  opacity: 0.45;
+}
+
+.featured-item.is-over {
+  border-color: var(--accent);
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+
+.drag-handle {
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+
+.featured-rank {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.featured-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.featured-info b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.featured-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.reason-tag {
+  font-size: 0.85rem;
+}
+
+.reason-order,
+.reason-offline {
+  color: var(--fail);
+}
+
+.reason-cancel,
+.reason-restock {
+  color: var(--pass);
+}
+
+.reason-admin {
+  color: var(--warn);
+}
+
+.data-table td.is-plus {
+  color: var(--pass);
+}
+
+.data-table td.is-minus {
+  color: var(--fail);
+}
+
+.infinite-foot {
+  min-height: 48px;
+  padding: 16px 0;
+  text-align: center;
+}
+
+/* ---------- Invoice & lacak paket (tab baru) ---------- */
+.doc-page {
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+
+.doc-card {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.doc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  margin-bottom: 28px;
+}
+
+.doc-logo {
+  width: 72px;
+  height: auto;
+}
+
+.doc-head-text {
+  flex: 1;
+  min-width: 200px;
+}
+
+.doc-head-text p {
+  margin: 4px 0 0;
+}
+
+.doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.doc-grid h2 {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.doc-grid p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.data-table tfoot td {
+  border-top: 1px solid var(--line);
+}
+
+.doc-total td {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.doc-foot {
+  margin: 20px 0 0;
+  font-size: 0.85rem;
+}
+
+@media print {
+  :root {
+    color-scheme: light;
+    --ink: #fff;
+    --panel: #fff;
+    --raised: #f3f4f6;
+    --line: #d1d5db;
+    --line-strong: #9ca3af;
+    --text: #111827;
+    --muted: #4b5563;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .doc-page {
+    padding: 0;
+  }
+
+  .doc-card {
+    border: 0;
+    padding: 0;
+  }
+}
+
+/* ---------- Responsif fase 5 ---------- */
+@media (max-width: 960px) {
+  .shop-layout,
+  .featured-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .shop-filters {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-head {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .head-actions,
+  .head-actions .btn {
+    width: 100%;
+  }
+
+  .head-actions .btn {
+    justify-content: center;
+  }
+
+  .filter-card,
+  .date-range {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .featured-item {
+    flex-wrap: wrap;
+  }
+
+  .featured-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .doc-card {
+    padding: 20px;
+  }
+
+  .col-actions .btn {
+    margin-bottom: 4px;
+  }
+
+  .calendar {
+    width: 100%;
+  }
+}
+
+/* Grid tidak boleh melebar karena tabel di dalam panel (tabel menggulir di dalam kotaknya) */
+.cart-layout > *,
+.featured-layout > * {
+  min-width: 0;
+}

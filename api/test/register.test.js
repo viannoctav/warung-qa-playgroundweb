@@ -120,19 +120,19 @@ function createRegisterDeps({ existing = [] } = {}) {
     }),
     hashPassword: async (password) => `hash:${password}`,
     createUser: async (user) => {
-      const created = { id: users.length + 100, ...user, role: 'admin' };
+      const created = { id: users.length + 100, ...user, role: 'user' };
       users.push(created);
       return created;
     },
   };
 }
 
-test('register berhasil: 201, role admin (katalog sendiri), tanpa password di respons', async () => {
+test('register berhasil: 201, role user (pembeli), tanpa password di respons', async () => {
   const deps = createRegisterDeps();
   const auth = createAuthService(deps);
   const res = await auth.register(validBody({ role: 'superuser', username: 'Rina_QA', email: 'RINA@Contoh.com' }));
   assert.equal(res.status, 201);
-  assert.deepEqual(res.body.data.user, { id: 100, username: 'rina_qa', name: 'Rina Anggraini', role: 'admin' });
+  assert.deepEqual(res.body.data.user, { id: 100, username: 'rina_qa', name: 'Rina Anggraini', role: 'user' });
   assert.equal(deps.users[0].email, 'rina@contoh.com');
   assert.equal(deps.users[0].passwordHash, 'hash:Rahasia1!');
   assert.equal(JSON.stringify(res.body).includes('Rahasia1!'), false);

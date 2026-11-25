@@ -28,7 +28,7 @@ router.get('/products/:id/image', async (req, res) => {
   return res.type(result.image.type).send(result.image.buffer);
 });
 
-router.use(['/categories', '/products'], requireUser);
+router.use(['/categories', '/products', '/stock-movements'], requireUser);
 
 // Upload gambar: body berupa file mentah (bukan JSON), Content-Type image/jpeg|png|webp
 const rawImage = express.raw({ type: IMAGE_TYPES, limit: IMAGE_MAX_BYTES });
@@ -51,6 +51,11 @@ router.get('/categories', async (req, res) => {
 router.get('/products', async (req, res) => {
   sendResult(res, await products.list(req.user, req.query));
 });
+
+// Produk unggulan & riwayat stok (didaftarkan sebelum /products/:id)
+router.get('/products/featured', async (req, res) => sendResult(res, await products.featured(req.user)));
+router.put('/products/featured', async (req, res) => sendResult(res, await products.setFeatured(req.user, req.body)));
+router.get('/stock-movements', async (req, res) => sendResult(res, await products.stockMovements(req.user, req.query)));
 
 // Didaftarkan sebelum /products/:id supaya "bulk-delete" tidak dianggap id
 router.post('/products/bulk-delete', async (req, res) => {

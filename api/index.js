@@ -5,6 +5,7 @@ const cors = require('cors');
 const authRoutes = require('./src/routes/auth');
 const productRoutes = require('./src/routes/products');
 const storeRoutes = require('./src/routes/store');
+const userRoutes = require('./src/routes/users');
 const { spec, swaggerHtml } = require('./src/openapi');
 const { sendError } = require('./src/http');
 const { MESSAGES } = require('./src/config');
@@ -29,6 +30,7 @@ app.get(['/api-docs', '/api-docs/'], (req, res) => {
 app.use('/api/v1', authRoutes);
 app.use('/api/v1', productRoutes);
 app.use('/api/v1', storeRoutes);
+app.use('/api/v1', userRoutes);
 
 // Endpoint yang tidak dikenal
 app.use((req, res) => {
@@ -42,7 +44,9 @@ app.use((err, req, res, next) => {
     return sendError(res, 400, 'VALIDATION_ERROR', 'Body harus berupa JSON yang valid');
   }
   if (err.type === 'entity.too.large') {
-    const message = req.path.endsWith('/image') ? 'Ukuran gambar maksimal 2 MB' : 'Body terlalu besar';
+    let message = 'Body terlalu besar';
+    if (req.path.endsWith('/image')) message = 'Ukuran gambar maksimal 2 MB';
+    if (req.path.endsWith('/payment-proof')) message = 'File harus PNG atau JPG, maksimal 1 MB';
     return sendError(res, 413, 'PAYLOAD_TOO_LARGE', message);
   }
   console.error(err);

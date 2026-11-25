@@ -18,7 +18,35 @@ const MESSAGES = {
   shippingMethod: 'Pilih metode pengiriman',
   paymentMethod: 'Pilih metode pembayaran',
   formInvalid: 'Data checkout belum valid. Periksa kembali isian Anda.',
+  shipDateRequired: 'Tanggal kirim wajib dipilih',
+  shipDateFormat: 'Format tanggal kirim harus YYYY-MM-DD',
+  shipDateWeekend: 'Tanggal kirim harus hari kerja (Senin–Jumat)',
+  shipDateRange: 'Tanggal kirim paling cepat besok dan paling lambat 14 hari lagi',
+  paymentRefRequired: 'Selesaikan pembayaran WarungPay dulu',
 };
+
+// Tanggal hari ini di WIB (YYYY-MM-DD)
+function todayJakarta(now = new Date()) {
+  return new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function addDays(dateText, days) {
+  const d = new Date(`${dateText}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function validateShipDate(value, now = new Date()) {
+  if (!value) return MESSAGES.shipDateRequired;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return MESSAGES.shipDateFormat;
+  const d = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value) return MESSAGES.shipDateFormat;
+  const today = todayJakarta(now);
+  if (value < addDays(today, 1) || value > addDays(today, 14)) return MESSAGES.shipDateRange;
+  const day = d.getUTCDay();
+  if (day === 0 || day === 6) return MESSAGES.shipDateWeekend;
+  return null;
+}
 
 function isQuantity(value) {
   return Number.isInteger(value) && value >= 1 && value <= 99;
@@ -35,7 +63,7 @@ function lengthError(value, min, max, required, length) {
 }
 
 // Data penerima + metode pengiriman & pembayaran
-function validateCheckout(body) {
+function validateCheckout(body, now = new Date()) {
   const input = body && typeof body === 'object' ? body : {};
   const errors = {};
   const value = {
@@ -48,6 +76,9 @@ function validateCheckout(body) {
     shippingMethod: input.shippingMethod,
     paymentMethod: input.paymentMethod,
     voucherCode: input.voucherCode,
+    giftCardCode: input.giftCardCode,
+    shipDate: typeof input.shipDate === 'string' ? input.shipDate.trim() : input.shipDate,
+    paymentRef: text(input.paymentRef),
   };
 
   const set = (field, message) => {
@@ -63,8 +94,10 @@ function validateCheckout(body) {
   if (value.notes.length > 200) set('notes', MESSAGES.notesLength);
   if (!Object.prototype.hasOwnProperty.call(SHIPPING_METHODS, value.shippingMethod)) set('shippingMethod', MESSAGES.shippingMethod);
   if (!Object.prototype.hasOwnProperty.call(PAYMENT_METHODS, value.paymentMethod)) set('paymentMethod', MESSAGES.paymentMethod);
+  set('shipDate', validateShipDate(value.shipDate, now));
+  if (value.paymentMethod === 'ewallet' && !value.paymentRef) set('paymentRef', MESSAGES.paymentRefRequired);
 
   return { errors, value };
 }
 
-module.exports = { validateCheckout, isQuantity, MESSAGES };
+module.exports = { validateCheckout, validateShipDate, todayJakarta, addDays, isQuantity, MESSAGES };

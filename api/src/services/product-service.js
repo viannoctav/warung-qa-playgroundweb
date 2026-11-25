@@ -3,6 +3,16 @@ const { validateProduct, validateListQuery, validateIds, MESSAGES } = require('.
 
 const FORBIDDEN_MESSAGE = 'Hanya akun admin yang bisa mengelola produk.';
 
+const FEATURED_MESSAGES = {
+  ids: 'ids harus berupa daftar id produk',
+  max: 'Maksimal 6 produk unggulan',
+  unique: 'Produk unggulan tidak boleh dobel',
+  notFound: 'Ada produk yang tidak ditemukan di katalog akun ini',
+};
+
+// order = terjual, cancel = kembali karena pesanan dibatalkan, admin = diubah admin, restock & offline = data contoh
+const MOVEMENT_REASONS = ['order', 'cancel', 'admin', 'restock', 'offline'];
+
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 const IMAGE_MESSAGES = {
@@ -95,6 +105,9 @@ function createProductService(deps) {
     await deps.ensureCatalog(user.id);
     return saveWithConflictCheck(user, value.sku, 0, async () => {
       const product = await deps.createProduct(user.id, value);
+      if (deps.recordStockMovement && product.stock > 0) {
+        await deps.recordStockMovement(user.id, product, product.stock, 'admin', `Produk baru oleh ${user.username}`);
+      }
       return { status: 201, body: { data: product } };
     });
   }
@@ -115,8 +128,60 @@ function createProductService(deps) {
     return saveWithConflictCheck(user, value.sku, id, async () => {
       const product = await deps.updateProduct(user.id, id, value);
       if (!product) return notFound();
+      if (deps.recordStockMovement && product.stock !== existing.stock) {
+        await deps.recordStockMovement(user.id, product, product.stock - existing.stock, 'admin', `Diubah ${user.username}`);
+      }
       return { status: 200, body: { data: product } };
     });
+  }
+
+  // ---------- Produk unggulan ----------
+
+  async function featured(user) {
+    if (!canManage(user)) return forbidden();
+    await deps.ensureCatalog(user.id);
+    return { status: 200, body: { data: await deps.listFeatured(user.id) } };
+  }
+
+  async function setFeatured(user, body) {
+    if (!canManage(user)) return forbidden();
+    const ids = body && Array.isArray(body.ids) ? body.ids : null;
+    if (!ids || !ids.every((id) => Number.isInteger(id) && id > 0)) {
+      return fail(400, 'VALIDATION_ERROR', FEATURED_MESSAGES.ids, { ids: FEATURED_MESSAGES.ids });
+    }
+    if (ids.length > 6) return fail(400, 'VALIDATION_ERROR', FEATURED_MESSAGES.max, { ids: FEATURED_MESSAGES.max });
+    if (new Set(ids).size !== ids.length) return fail(400, 'VALIDATION_ERROR', FEATURED_MESSAGES.unique, { ids: FEATURED_MESSAGES.unique });
+    await deps.ensureCatalog(user.id);
+    if (ids.length > 0 && (await deps.countOwnedProducts(user.id, ids)) !== ids.length) {
+      return fail(404, 'NOT_FOUND', FEATURED_MESSAGES.notFound);
+    }
+    return { status: 200, body: { data: await deps.setFeatured(user.id, ids) } };
+  }
+
+  // ---------- Riwayat stok (cursor pagination) ----------
+
+  async function stockMovements(user, query) {
+    if (!canManage(user)) return forbidden();
+    const q = query && typeof query === 'object' ? query : {};
+    const errors = {};
+    const cursor = q.cursor === undefined || q.cursor === '' ? null : String(q.cursor);
+    if (cursor !== null && !/^\d{1,10}$/.test(cursor)) errors.cursor = 'Cursor tidak valid';
+    const limitRaw = q.limit === undefined ? '50' : String(q.limit);
+    if (!/^\d+$/.test(limitRaw) || Number(limitRaw) < 1 || Number(limitRaw) > 100) errors.limit = 'Limit harus 1–100';
+    const productRaw = q.productId === undefined || q.productId === '' ? null : String(q.productId);
+    if (productRaw !== null && !parseId(productRaw)) errors.productId = 'productId harus berupa id produk';
+    const reason = q.reason === undefined ? '' : String(q.reason);
+    if (reason && !MOVEMENT_REASONS.includes(reason)) errors.reason = `Reason harus ${MOVEMENT_REASONS.join(', ')}`;
+    if (Object.keys(errors).length > 0) return fail(400, 'VALIDATION_ERROR', 'Parameter tidak valid', errors);
+
+    await deps.ensureCatalog(user.id);
+    const { total, items, nextCursor } = await deps.listStockMovements(user.id, {
+      cursor: cursor === null ? null : Number(cursor),
+      limit: Number(limitRaw),
+      productId: productRaw === null ? null : Number(productRaw),
+      reason,
+    });
+    return { status: 200, body: { data: items, meta: { total, nextCursor } } };
   }
 
   async function remove(user, rawId) {
@@ -179,6 +244,9 @@ function createProductService(deps) {
   }
 
   return {
+    featured,
+    setFeatured,
+    stockMovements,
     setImage,
     deleteImage,
     getImage,
@@ -193,4 +261,4 @@ function createProductService(deps) {
   };
 }
 
-module.exports = { createProductService, FORBIDDEN_MESSAGE, NOT_FOUND_MESSAGE, IMAGE_MESSAGES, IMAGE_TYPES, IMAGE_MAX_BYTES };
+module.exports = { createProductService, FEATURED_MESSAGES, MOVEMENT_REASONS, FORBIDDEN_MESSAGE, NOT_FOUND_MESSAGE, IMAGE_MESSAGES, IMAGE_TYPES, IMAGE_MAX_BYTES };

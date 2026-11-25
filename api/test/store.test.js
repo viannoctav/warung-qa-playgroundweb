@@ -18,6 +18,7 @@ const VALID_CHECKOUT = {
   notes: '',
   shippingMethod: 'reguler',
   paymentMethod: 'transfer',
+  shipDate: '2026-11-25',
 };
 
 // ---------- Harga & voucher ----------
@@ -25,7 +26,8 @@ const VALID_CHECKOUT = {
 test('ringkasan: subtotal, ongkir, total tanpa voucher', () => {
   const s = computeSummary([{ price: 25000, quantity: 2 }, { price: 10000, quantity: 1 }], 'express', '');
   assert.deepEqual(s, {
-    itemCount: 3, subtotal: 60000, shippingCost: 20000, discount: 0, total: 80000, voucherCode: null, voucherError: null,
+    itemCount: 3, subtotal: 60000, shippingCost: 20000, discount: 0, giftCardDiscount: 0, total: 80000,
+    voucherCode: null, voucherError: null, giftCardCode: null, giftCardError: null,
   });
 });
 
@@ -55,8 +57,9 @@ test('voucher ditolak: tidak dikenal, kedaluwarsa, belum memenuhi minimal (batas
 });
 
 test('validasi checkout: wajib, format, panjang, metode', () => {
-  assert.deepEqual(validateCheckout(VALID_CHECKOUT).errors, {});
-  const { errors } = validateCheckout({ phone: '12345', postalCode: '1711', address: 'pendek', notes: 'x'.repeat(201) });
+  const NOW = new Date('2026-11-24T05:00:00Z');
+  assert.deepEqual(validateCheckout(VALID_CHECKOUT, NOW).errors, {});
+  const { errors } = validateCheckout({ phone: '12345', postalCode: '1711', address: 'pendek', notes: 'x'.repeat(201), shipDate: '2026-11-25' }, NOW);
   assert.deepEqual(errors, {
     recipientName: 'Nama penerima wajib diisi',
     phone: 'Nomor HP harus diawali 08 atau +628 dan berisi 10–14 digit',
@@ -67,7 +70,7 @@ test('validasi checkout: wajib, format, panjang, metode', () => {
     shippingMethod: 'Pilih metode pengiriman',
     paymentMethod: 'Pilih metode pembayaran',
   });
-  assert.equal(validateCheckout({ ...VALID_CHECKOUT, phone: '+6281234567' }).errors.phone, undefined);
+  assert.equal(validateCheckout({ ...VALID_CHECKOUT, phone: '+6281234567' }, NOW).errors.phone, undefined);
 });
 
 test('nomor pesanan berformat WQA-YYYYMMDD-XXXXXX memakai tanggal WIB', () => {
@@ -94,7 +97,13 @@ function setup() {
   };
   const strip = ({ ownerId, ...p }) => ({ ...p });
 
+  const payments = new Map();
   const deps = {
+    now: () => new Date('2026-11-24T05:00:00Z'),
+    findPayment: async (ref, userId) => {
+      const p = payments.get(ref);
+      return p && p.userId === userId ? { ref, amount: p.amount, used: p.used } : null;
+    },
     findDemoStoreOwnerId: async () => STORE_ADMIN.id,
     ensureCatalog: async (ownerId) => {
       if (seeded.has(ownerId)) return;
@@ -159,7 +168,7 @@ function setup() {
     const owner = user.role === 'admin' ? user.id : STORE_ADMIN.id;
     return products.find((p) => p.ownerId === owner && p.name === name);
   };
-  return { svc, products, byName, cart, deps };
+  return { svc, products, byName, cart, deps, payments };
 }
 
 test('role user belanja di toko admin_user dan hanya melihat produk aktif', async () => {
@@ -244,7 +253,8 @@ test('preview checkout: keranjang kosong, voucher salah, voucher benar', async (
   await svc.addItem(BUYER, { productId: kopi.id, quantity: 2 }); // 100.000
   const ok = await svc.preview(BUYER, { shippingMethod: 'express', voucherCode: 'HEMAT10' });
   assert.deepEqual(ok.body.data, {
-    itemCount: 2, subtotal: 100000, shippingCost: 20000, discount: 10000, total: 110000, voucherCode: 'HEMAT10',
+    itemCount: 2, subtotal: 100000, shippingCost: 20000, discount: 10000, giftCardDiscount: 0, total: 110000,
+    voucherCode: 'HEMAT10', giftCardCode: null,
   });
   const bad = await svc.preview(BUYER, { voucherCode: 'WARUNG25K' });
   assert.equal(bad.status, 400);
@@ -312,4 +322,56 @@ test('dokumentasi OpenAPI memuat endpoint toko, keranjang, pesanan, gambar', () 
   for (const path of ['/api/v1/store/products', '/api/v1/store/products/{id}', '/api/v1/cart', '/api/v1/cart/items', '/api/v1/cart/items/{productId}', '/api/v1/checkout/preview', '/api/v1/orders', '/api/v1/orders/{orderNumber}', '/api/v1/products/{id}/image']) {
     assert.ok(spec.paths[path], path);
   }
+});
+
+// ---------- Tanggal kirim, gift card, FLASH15, WarungPay ----------
+
+test('tanggal kirim: wajib, format, hari kerja, H+1 sampai H+14 (WIB)', () => {
+  const NOW = new Date('2026-11-24T18:00:00Z'); // 25 Nov 01.00 WIB
+  const err = (shipDate) => validateCheckout({ ...VALID_CHECKOUT, shipDate }, NOW).errors.shipDate;
+  assert.equal(err(''), 'Tanggal kirim wajib dipilih');
+  assert.equal(err('26-11-2026'), 'Format tanggal kirim harus YYYY-MM-DD');
+  assert.equal(err('2026-02-30'), 'Format tanggal kirim harus YYYY-MM-DD');
+  assert.equal(err('2026-11-25'), 'Tanggal kirim paling cepat besok dan paling lambat 14 hari lagi');
+  assert.equal(err('2026-11-26'), undefined);
+  assert.equal(err('2026-11-28'), 'Tanggal kirim harus hari kerja (Senin–Jumat)');
+  assert.equal(err('2026-12-09'), undefined);
+  assert.equal(err('2026-12-10'), 'Tanggal kirim paling cepat besok dan paling lambat 14 hari lagi');
+});
+
+test('gift card dan voucher FLASH15', () => {
+  const s = computeSummary([{ price: 100000, quantity: 1 }], 'reguler', 'flash15', 'gift-7788-wqa');
+  assert.equal(s.discount, 15000);
+  assert.equal(s.giftCardDiscount, 20000);
+  assert.equal(s.total, 100000 - 15000 + 10000 - 20000);
+  assert.equal(s.giftCardCode, 'GIFT-7788-WQA');
+  const capped = computeSummary([{ price: 4000, quantity: 1 }], 'reguler', '', 'GIFT-5000-WQA');
+  assert.equal(capped.giftCardDiscount, 14000);
+  assert.equal(capped.total, 0);
+  assert.equal(computeSummary([{ price: 4000, quantity: 1 }], 'reguler', '', 'GIFT-0000').giftCardError, 'Kode gift card tidak ditemukan');
+});
+
+test('checkout e-wallet wajib WarungPay yang lunas, nominal sama, belum dipakai', async () => {
+  const { svc, byName, payments } = setup();
+  const kopi = await byName(BUYER, 'Kopi Aktif'); // 50.000
+  await svc.addItem(BUYER, { productId: kopi.id, quantity: 1 }); // total 60.000 (reguler)
+  const body = { ...VALID_CHECKOUT, paymentMethod: 'ewallet' };
+  assert.equal((await svc.createOrder(BUYER, body)).body.error.fields.paymentRef, 'Selesaikan pembayaran WarungPay dulu');
+  assert.equal((await svc.createOrder(BUYER, { ...body, paymentRef: 'WPY-X' })).body.error.fields.paymentRef, 'Pembayaran WarungPay tidak ditemukan');
+  payments.set('WPY-A', { userId: BUYER.id, amount: 59000, used: false });
+  assert.equal((await svc.createOrder(BUYER, { ...body, paymentRef: 'WPY-A' })).body.error.fields.paymentRef, 'Nominal pembayaran tidak sama dengan total pesanan');
+  payments.set('WPY-B', { userId: BUYER.id, amount: 60000, used: true });
+  assert.equal((await svc.createOrder(BUYER, { ...body, paymentRef: 'WPY-B' })).status, 409);
+  payments.set('WPY-C', { userId: BUYER.id, amount: 60000, used: false });
+  assert.equal((await svc.createOrder(BUYER, { ...body, paymentRef: 'WPY-C' })).status, 201);
+});
+
+test('preview: gift card salah ditolak di field giftCardCode', async () => {
+  const { svc, byName } = setup();
+  const kopi = await byName(BUYER, 'Kopi Aktif');
+  await svc.addItem(BUYER, { productId: kopi.id, quantity: 1 });
+  const res = await svc.preview(BUYER, { giftCardCode: 'GIFT-SALAH' });
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error.fields.giftCardCode, 'Kode gift card tidak ditemukan');
+  assert.equal((await svc.preview(BUYER, { giftCardCode: 'GIFT-7788-WQA' })).body.data.giftCardDiscount, 20000);
 });

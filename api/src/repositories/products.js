@@ -1,8 +1,8 @@
 const { getSql } = require('../db');
-const { SEED_PRODUCTS } = require('../products/catalog');
+const { SEED_PRODUCTS, FEATURED_SKUS, buildMovements } = require('../products/catalog');
 
 const COLUMNS =
-  'id, sku, name, category, price, stock, is_active, description, created_at, updated_at, (image_data IS NOT NULL) AS has_image, image_updated_at';
+  'id, sku, name, category, price, stock, is_active, description, created_at, updated_at, (image_data IS NOT NULL) AS has_image, image_updated_at, featured_rank';
 
 // Nama field API → kolom database (dipakai untuk sort dan update dinamis)
 const SORT_SQL = {
@@ -10,6 +10,7 @@ const SORT_SQL = {
   price: 'price',
   stock: 'stock',
   createdAt: 'created_at',
+  featured: 'featured_rank',
 };
 
 const UPDATE_COLUMNS = {
@@ -34,6 +35,7 @@ function toProduct(row) {
     description: row.description,
     // URL gambar memakai versi (waktu upload) supaya browser tidak menampilkan gambar lama
     imageUrl: row.has_image ? `/api/v1/products/${row.id}/image?v=${new Date(row.image_updated_at).getTime()}` : null,
+    featuredRank: row.featured_rank ?? null,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
@@ -53,6 +55,26 @@ function seedQuery(sql, ownerId) {
   `;
 }
 
+// Riwayat stok contoh (±500 baris) dan produk unggulan awal, dibuat bersama 24 produk awal
+function seedExtrasQueries(sql, ownerId) {
+  const movements = buildMovements(SEED_PRODUCTS.map((p) => ({ sku: p.sku, stock: p.stock })));
+  return [
+    sql`
+      INSERT INTO stock_movements (owner_id, product_id, product_name, change, reason, ref, stock_after, created_at)
+      SELECT ${ownerId}, p.id, p.name, x.change, x.reason, x.ref, x.after, now() - make_interval(mins => x.ago)
+      FROM jsonb_to_recordset(${JSON.stringify(movements)}::jsonb)
+        AS x(sku text, change int, reason text, ref text, after int, ago int)
+      JOIN products p ON p.owner_id = ${ownerId} AND p.sku = x.sku
+      ORDER BY x.ago DESC
+    `,
+    sql`
+      UPDATE products p SET featured_rank = f.rank
+      FROM jsonb_to_recordset(${JSON.stringify(FEATURED_SKUS.map((sku, i) => ({ sku, rank: i + 1 })))}::jsonb) AS f(sku text, rank int)
+      WHERE p.owner_id = ${ownerId} AND p.sku = f.sku
+    `,
+  ];
+}
+
 // Membuat 24 produk awal saat katalog akun ini pertama kali dipakai
 async function ensureCatalog(ownerId) {
   const sql = getSql();
@@ -61,7 +83,7 @@ async function ensureCatalog(ownerId) {
     WHERE id = ${ownerId} AND NOT products_seeded
     RETURNING id
   `;
-  if (claimed.length > 0) await seedQuery(sql, ownerId);
+  if (claimed.length > 0) await sql.transaction([seedQuery(sql, ownerId), ...seedExtrasQueries(sql, ownerId)]);
 }
 
 // Reset Data: hapus semua produk akun ini lalu isi ulang 24 produk awal
@@ -70,11 +92,12 @@ async function resetCatalog(ownerId) {
   await sql.transaction([
     sql`DELETE FROM products WHERE owner_id = ${ownerId}`,
     seedQuery(sql, ownerId),
+    ...seedExtrasQueries(sql, ownerId),
     sql`UPDATE users SET products_seeded = true WHERE id = ${ownerId}`,
   ]);
 }
 
-async function listProducts(ownerId, { search, category, status, sort, order, page, limit }) {
+async function listProducts(ownerId, { search, category, categories, minPrice, maxPrice, status, sort, order, page, limit }) {
   const sql = getSql();
   const params = [ownerId];
   const where = ['owner_id = $1'];
@@ -84,9 +107,18 @@ async function listProducts(ownerId, { search, category, status, sort, order, pa
     const p = `$${params.length}`;
     where.push(`(name ILIKE ${p} ESCAPE '\\' OR sku ILIKE ${p} ESCAPE '\\')`);
   }
-  if (category) {
-    params.push(category);
-    where.push(`category = $${params.length}`);
+  const categoryList = categories && categories.length > 0 ? categories : category ? [category] : [];
+  if (categoryList.length > 0) {
+    params.push(JSON.stringify(categoryList));
+    where.push(`category IN (SELECT jsonb_array_elements_text($${params.length}::jsonb))`);
+  }
+  if (Number.isInteger(minPrice)) {
+    params.push(minPrice);
+    where.push(`price >= $${params.length}`);
+  }
+  if (Number.isInteger(maxPrice)) {
+    params.push(maxPrice);
+    where.push(`price <= $${params.length}`);
   }
   if (status === 'active') where.push('is_active');
   if (status === 'inactive') where.push('NOT is_active');
@@ -96,7 +128,11 @@ async function listProducts(ownerId, { search, category, status, sort, order, pa
   const total = countRows[0].total;
 
   // Kolom sort diambil dari daftar tetap (bukan dari input), jadi aman dari SQL injection
-  const orderSql = `${SORT_SQL[sort]} ${order === 'desc' ? 'DESC' : 'ASC'}, id ASC`;
+  // "Pilihan admin": produk unggulan dulu sesuai urutan, sisanya urut nama
+  const orderSql =
+    sort === 'featured'
+      ? 'featured_rank ASC NULLS LAST, lower(name) ASC, id ASC'
+      : `${SORT_SQL[sort]} ${order === 'desc' ? 'DESC' : 'ASC'}, id ASC`;
   const rows = await sql.query(
     `SELECT ${COLUMNS} FROM products WHERE ${whereSql} ORDER BY ${orderSql} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, (page - 1) * limit],
@@ -196,7 +232,99 @@ async function getImage(id) {
   return rows[0] ? { data: rows[0].image_data, type: rows[0].image_type } : null;
 }
 
+// ---------- Produk unggulan ----------
+
+async function listFeatured(ownerId) {
+  const sql = getSql();
+  const rows = await sql.query(
+    `SELECT ${COLUMNS} FROM products WHERE owner_id = $1 AND featured_rank IS NOT NULL ORDER BY featured_rank, id`,
+    [ownerId],
+  );
+  return rows.map(toProduct);
+}
+
+// ids sudah divalidasi (unik, maks 6, milik akun ini)
+async function setFeatured(ownerId, ids) {
+  const sql = getSql();
+  await sql.transaction([
+    sql`UPDATE products SET featured_rank = NULL WHERE owner_id = ${ownerId} AND featured_rank IS NOT NULL`,
+    sql`
+      UPDATE products p SET featured_rank = f.rank
+      FROM jsonb_to_recordset(${JSON.stringify(ids.map((id, i) => ({ id, rank: i + 1 })))}::jsonb) AS f(id int, rank int)
+      WHERE p.owner_id = ${ownerId} AND p.id = f.id
+    `,
+  ]);
+  return listFeatured(ownerId);
+}
+
+async function countOwnedProducts(ownerId, ids) {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT COUNT(*)::int AS n FROM products
+    WHERE owner_id = ${ownerId} AND id IN (SELECT jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)::int)
+  `;
+  return rows[0].n;
+}
+
+// ---------- Riwayat stok ----------
+
+async function recordStockMovement(ownerId, product, change, reason, ref) {
+  const sql = getSql();
+  await sql`
+    INSERT INTO stock_movements (owner_id, product_id, product_name, change, reason, ref, stock_after)
+    VALUES (${ownerId}, ${product.id}, ${product.name}, ${change}, ${reason}, ${ref}, ${product.stock})
+  `;
+}
+
+function toMovement(row) {
+  return {
+    id: row.id,
+    productId: row.product_id,
+    productName: row.product_name,
+    change: row.change,
+    reason: row.reason,
+    ref: row.ref,
+    stockAfter: row.stock_after,
+    createdAt: new Date(row.created_at).toISOString(),
+  };
+}
+
+// Cursor = id baris terakhir yang sudah diterima (terbaru dulu)
+async function listStockMovements(ownerId, { cursor, limit, productId, reason }) {
+  const sql = getSql();
+  const params = [ownerId];
+  const where = ['owner_id = $1'];
+  if (productId) {
+    params.push(productId);
+    where.push(`product_id = $${params.length}`);
+  }
+  if (reason) {
+    params.push(reason);
+    where.push(`reason = $${params.length}`);
+  }
+  const filterSql = where.join(' AND ');
+  const countRows = await sql.query(`SELECT COUNT(*)::int AS total FROM stock_movements WHERE ${filterSql}`, params);
+  const pageParams = [...params];
+  let pageWhere = filterSql;
+  if (cursor) {
+    pageParams.push(cursor);
+    pageWhere += ` AND id < $${pageParams.length}`;
+  }
+  pageParams.push(limit + 1);
+  const rows = await sql.query(
+    `SELECT * FROM stock_movements WHERE ${pageWhere} ORDER BY id DESC LIMIT $${pageParams.length}`,
+    pageParams,
+  );
+  const items = rows.slice(0, limit).map(toMovement);
+  return { total: countRows[0].total, items, nextCursor: rows.length > limit ? String(items[items.length - 1].id) : null };
+}
+
 module.exports = {
+  listFeatured,
+  setFeatured,
+  countOwnedProducts,
+  recordStockMovement,
+  listStockMovements,
   setImage,
   deleteImage,
   getImage,

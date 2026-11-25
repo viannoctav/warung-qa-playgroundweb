@@ -37,6 +37,16 @@ const dataResponse = (ref) => (description) => ({
 const cartResponse = dataResponse('Cart');
 const orderResponse = dataResponse('Order');
 
+const userForbidden = errorResponse('Bukan admin', 'FORBIDDEN', 'Hanya akun admin yang bisa mengelola user.');
+const userNotFound = errorResponse('User tidak ada / sudah kedaluwarsa', 'NOT_FOUND', 'User tidak ditemukan');
+const demoProtected = errorResponse('Akun demo dilindungi', 'DEMO_PROTECTED', 'Akun demo tidak bisa diubah atau dihapus');
+const userIdParam = { name: 'id', in: 'path', required: true, schema: { type: 'integer' }, example: 10 };
+const userResponse = dataResponse('AdminUser');
+
+const orderNoParam = { name: 'orderNumber', in: 'path', required: true, schema: { type: 'string' }, example: 'WQA-20261124-K7Q2ZP' };
+const orderNotFound = errorResponse('Tidak ada atau bukan milik akun ini', 'NOT_FOUND', 'Pesanan tidak ditemukan');
+const imageOk = { description: 'File gambar', content: { 'image/png': { schema: { type: 'string', format: 'binary' } } } };
+
 const spec = {
   openapi: '3.0.3',
   info: {
@@ -46,8 +56,8 @@ const spec = {
       'API playground untuk latihan API testing. Login dulu lewat `POST /api/v1/auth/login` (contoh: standard_user / Warung123!), ' +
       'salin `token`, lalu klik **Authorize** dan tempel token-nya.\n\n' +
       'Akun demo: `standard_user` (pembeli di toko admin_user), `admin_user` (kelola produk + belanja di tokonya), `locked_user` (423), `slow_user` (5 detik), `error_user` (500). ' +
-      'Akun hasil registrasi ber-role admin untuk tokonya sendiri dan aktif 24 jam.\n\n' +
-      'Voucher latihan: `HEMAT10`, `WARUNG25K`, `ONGKIRGRATIS`, `KADALUARSA`.',
+      'Akun hasil registrasi selalu ber-role user (pembeli di toko admin_user) dan aktif 24 jam. Admin hanya admin_user.\n\n' +
+      'Voucher latihan: `HEMAT10`, `WARUNG25K`, `ONGKIRGRATIS`, `FLASH15`, `KADALUARSA`. Gift card: `GIFT-7788-WQA`, `GIFT-5000-WQA`. PIN WarungPay: `123456`.',
   },
   servers: [{ url: '/', description: 'Server ini' }],
   tags: [
@@ -57,6 +67,9 @@ const spec = {
     { name: 'Store', description: 'Katalog toko untuk pembeli (hanya produk aktif)' },
     { name: 'Cart', description: 'Keranjang belanja' },
     { name: 'Orders', description: 'Checkout dan riwayat pesanan' },
+    { name: 'Admin Orders', description: 'Pesanan toko & ubah status (khusus admin)' },
+    { name: 'Payments', description: 'WarungPay: pembayaran e-wallet latihan' },
+    { name: 'Users', description: 'Kelola User (khusus admin). Akun demo hanya bisa dilihat.' },
   ],
   components: {
     securitySchemes: {
@@ -133,7 +146,7 @@ const spec = {
       },
       CheckoutInput: {
         type: 'object',
-        required: ['recipientName', 'phone', 'address', 'city', 'postalCode', 'shippingMethod', 'paymentMethod'],
+        required: ['recipientName', 'phone', 'address', 'city', 'postalCode', 'shippingMethod', 'paymentMethod', 'shipDate'],
         properties: {
           recipientName: { type: 'string', minLength: 3, maxLength: 50, example: 'Budi Santoso' },
           phone: { type: 'string', example: '081234567890' },
@@ -144,6 +157,31 @@ const spec = {
           shippingMethod: { type: 'string', enum: ['reguler', 'express', 'sameday'], example: 'reguler' },
           paymentMethod: { type: 'string', enum: ['transfer', 'ewallet', 'cod'], example: 'transfer' },
           voucherCode: { type: 'string', example: 'HEMAT10' },
+          giftCardCode: { type: 'string', example: 'GIFT-7788-WQA', description: 'Gift card latihan: GIFT-7788-WQA (Rp 20.000), GIFT-5000-WQA (Rp 50.000)' },
+          shipDate: { type: 'string', format: 'date', example: '2026-11-26', description: 'Hari kerja, H+1 sampai H+14 (WIB)' },
+          paymentRef: { type: 'string', example: 'WPY-7K2XQ9PM', description: 'Wajib untuk ewallet: dari POST /api/v1/payments/warungpay, nominal harus sama dengan total' },
+        },
+      },
+      OrderHistory: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ['diproses', 'dikirim', 'selesai', 'dibatalkan'] },
+          actor: { type: 'string', example: 'admin_user' },
+          note: { type: 'string', example: 'Kurir Express (1–2 hari), resi WQA1234567890' },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      StockMovement: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer', example: 512 },
+          productId: { type: 'integer' },
+          productName: { type: 'string' },
+          change: { type: 'integer', example: -3 },
+          reason: { type: 'string', enum: ['order', 'cancel', 'admin', 'restock', 'offline'] },
+          ref: { type: 'string', example: 'WQA-20261124-K7Q2ZP' },
+          stockAfter: { type: 'integer', example: 37 },
+          createdAt: { type: 'string', format: 'date-time' },
         },
       },
       Order: {
@@ -161,6 +199,17 @@ const spec = {
           shippingCost: { type: 'integer' },
           paymentMethod: { type: 'string' },
           voucherCode: { type: 'string' },
+          giftCardCode: { type: 'string', nullable: true },
+          giftCardDiscount: { type: 'integer' },
+          shipDate: { type: 'string', format: 'date' },
+          courier: { type: 'string', nullable: true },
+          trackingNumber: { type: 'string', nullable: true },
+          paymentRef: { type: 'string', nullable: true },
+          cancelReason: { type: 'string', nullable: true },
+          cancelNote: { type: 'string', nullable: true },
+          buyer: { type: 'string', description: 'Username pembeli' },
+          paymentProof: { type: 'object', nullable: true, properties: { name: { type: 'string' }, type: { type: 'string' }, size: { type: 'integer' }, uploadedAt: { type: 'string', format: 'date-time' } } },
+          history: { type: 'array', items: { $ref: '#/components/schemas/OrderHistory' } },
           subtotal: { type: 'integer' },
           discount: { type: 'integer' },
           total: { type: 'integer' },
@@ -179,6 +228,22 @@ const spec = {
               },
             },
           },
+        },
+      },
+      AdminUser: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer', example: 10 },
+          username: { type: 'string', example: 'rina_qa' },
+          fullName: { type: 'string', example: 'Rina Anggraini' },
+          email: { type: 'string', example: 'rina@contoh.com' },
+          phone: { type: 'string', nullable: true, example: '081234567890' },
+          birthDate: { type: 'string', format: 'date', nullable: true, example: '1995-08-17' },
+          gender: { type: 'string', enum: ['female', 'male', 'unspecified'], nullable: true },
+          role: { type: 'string', enum: ['user', 'admin'] },
+          isDemo: { type: 'boolean', example: false },
+          createdAt: { type: 'string', format: 'date-time' },
+          expiresAt: { type: 'string', format: 'date-time', nullable: true, description: 'Akun registrasi terhapus otomatis 24 jam setelah dibuat. null untuk akun demo.' },
         },
       },
       ProductInput: {
@@ -512,12 +577,14 @@ const spec = {
       get: {
         tags: ['Store'],
         summary: 'Katalog toko (produk aktif saja)',
-        description: 'Role user melihat toko admin_user. Role admin melihat tokonya sendiri.',
+        description: 'Semua akun belanja di toko admin_user (admin_user sendiri juga).',
         security: [{ bearerAuth: [] }],
         parameters: [
           { name: 'search', in: 'query', schema: { type: 'string', maxLength: 100 } },
-          { name: 'category', in: 'query', schema: { type: 'string', enum: ['kopi', 'teh', 'makanan-ringan', 'bumbu-dapur', 'minuman-kemasan'] } },
-          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['name', 'price', 'stock', 'createdAt'], default: 'name' } },
+          { name: 'category', in: 'query', description: 'Satu atau lebih, dipisah koma: kopi,teh', schema: { type: 'string', example: 'kopi,teh' } },
+          { name: 'minPrice', in: 'query', schema: { type: 'integer', minimum: 0, maximum: 10000000 } },
+          { name: 'maxPrice', in: 'query', schema: { type: 'integer', minimum: 0, maximum: 10000000 } },
+          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['name', 'price', 'stock', 'createdAt', 'featured'], default: 'name' }, description: 'featured = Pilihan admin (produk unggulan dulu)' },
           { name: 'order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'asc' } },
           { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
           { name: 'limit', in: 'query', schema: { type: 'integer', enum: [12, 24, 48], default: 12 } },
@@ -661,6 +728,10 @@ const spec = {
         tags: ['Orders'],
         summary: 'Riwayat pesanan akun ini (terbaru dulu)',
         security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-11-18' },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date' }, example: '2026-11-24' },
+        ],
         responses: { 200: { description: 'Daftar pesanan (tanpa items, dengan itemCount)' }, 401: unauthorized },
       },
     },
@@ -671,6 +742,292 @@ const spec = {
         security: [{ bearerAuth: [] }],
         parameters: [{ name: 'orderNumber', in: 'path', required: true, schema: { type: 'string' }, example: 'WQA-20261124-K7Q2ZP' }],
         responses: { 200: orderResponse('Pesanan'), 401: unauthorized, 404: errorResponse('Tidak ada atau milik akun lain', 'NOT_FOUND', 'Pesanan tidak ditemukan') },
+      },
+    },
+    '/api/v1/users': {
+      get: {
+        tags: ['Users'],
+        summary: 'Daftar user aktif (admin)',
+        description: 'Akun demo + akun registrasi yang belum lewat 24 jam.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'search', in: 'query', description: 'Cari di username, nama, email', schema: { type: 'string', maxLength: 100 } },
+          { name: 'role', in: 'query', schema: { type: 'string', enum: ['user', 'admin'] } },
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['demo', 'registered'] } },
+          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['username', 'fullName', 'createdAt'], default: 'createdAt' } },
+          { name: 'order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'] }, description: 'Default desc untuk createdAt, asc untuk lainnya' },
+          { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', enum: [5, 10, 20, 50], default: 10 } },
+        ],
+        responses: {
+          200: {
+            description: 'Daftar user + meta pagination',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: { type: 'array', items: { $ref: '#/components/schemas/AdminUser' } },
+                    meta: { type: 'object', properties: { page: { type: 'integer' }, limit: { type: 'integer' }, total: { type: 'integer' }, totalPages: { type: 'integer' } } },
+                  },
+                },
+              },
+            },
+          },
+          400: errorResponse('Query tidak valid', 'VALIDATION_ERROR', 'Parameter tidak valid', { limit: 'Limit harus 5, 10, 20, atau 50' }),
+          401: unauthorized,
+          403: userForbidden,
+        },
+      },
+    },
+    '/api/v1/users/bulk-delete': {
+      post: {
+        tags: ['Users'],
+        summary: 'Hapus banyak user (admin)',
+        description: 'Ditolak semua (403) kalau ada akun demo di daftar. Id yang tidak ada diabaikan.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['ids'], properties: { ids: { type: 'array', items: { type: 'integer' }, minItems: 1, maxItems: 50, example: [10, 11] } } } } },
+        },
+        responses: {
+          200: { description: 'Jumlah yang terhapus', content: { 'application/json': { schema: { type: 'object', properties: { data: { type: 'object', properties: { deleted: { type: 'integer', example: 2 } } } } } } } },
+          400: errorResponse('ids tidak valid', 'VALIDATION_ERROR', 'ids harus berisi 1–50 id user'),
+          401: unauthorized,
+          403: errorResponse('Bukan admin / ada akun demo', 'DEMO_PROTECTED', 'Daftar berisi akun demo. Akun demo tidak bisa dihapus.'),
+        },
+      },
+    },
+    '/api/v1/users/{id}': {
+      get: {
+        tags: ['Users'],
+        summary: 'Detail user (admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [userIdParam],
+        responses: { 200: userResponse('User'), 401: unauthorized, 403: userForbidden, 404: userNotFound },
+      },
+      patch: {
+        tags: ['Users'],
+        summary: 'Ubah data user (admin)',
+        description: 'Kirim hanya field yang mau diubah. Aturan validasi sama dengan registrasi. Field lain (role, password, dll.) ditolak 400.',
+        security: [{ bearerAuth: [] }],
+        parameters: [userIdParam],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  fullName: { type: 'string', example: 'Rina Wijaya' },
+                  username: { type: 'string', example: 'rina_w' },
+                  email: { type: 'string', example: 'rina.w@contoh.com' },
+                  phone: { type: 'string', example: '081234567890' },
+                  birthDate: { type: 'string', format: 'date', example: '1995-08-17' },
+                  gender: { type: 'string', enum: ['female', 'male', 'unspecified'] },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: userResponse('Data terbaru'),
+          400: errorResponse('Data tidak valid / field terlarang / kosong', 'VALIDATION_ERROR', 'Field tidak bisa diubah: role', { role: 'Field tidak bisa diubah: role' }),
+          401: unauthorized,
+          403: demoProtected,
+          404: userNotFound,
+          409: errorResponse('Username/email dipakai akun lain', 'ALREADY_EXISTS', 'Username atau email sudah terdaftar', { email: 'Email sudah terdaftar' }),
+        },
+      },
+      delete: {
+        tags: ['Users'],
+        summary: 'Hapus user (admin)',
+        description: 'Keranjang & pesanan user ikut terhapus. Token user itu langsung tidak berlaku (401).',
+        security: [{ bearerAuth: [] }],
+        parameters: [userIdParam],
+        responses: { 204: { description: 'Terhapus' }, 401: unauthorized, 403: demoProtected, 404: userNotFound },
+      },
+    },
+    '/api/v1/users/{id}/password': {
+      put: {
+        tags: ['Users'],
+        summary: 'Ganti password user (admin)',
+        description: 'Aturan password sama dengan registrasi. Hitungan gagal login user itu ikut dihapus.',
+        security: [{ bearerAuth: [] }],
+        parameters: [userIdParam],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['newPassword', 'confirmPassword'],
+                properties: { newPassword: { type: 'string', example: 'Baru123!' }, confirmPassword: { type: 'string', example: 'Baru123!' } },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Berhasil', content: { 'application/json': { schema: { type: 'object', properties: { data: { type: 'object', properties: { message: { type: 'string', example: 'Password berhasil diubah' } } } } } } } },
+          400: errorResponse('Password tidak valid', 'VALIDATION_ERROR', 'Data belum valid. Periksa kembali isian Anda.', { newPassword: 'Password minimal 8 karakter' }),
+          401: unauthorized,
+          403: demoProtected,
+          404: userNotFound,
+        },
+      },
+    },
+    '/api/v1/orders/{orderNumber}/cancel': {
+      post: {
+        tags: ['Orders'],
+        summary: 'Pembeli membatalkan pesanannya (hanya saat Diproses)',
+        description: 'Stok dikembalikan. Alasan: stok-habis, permintaan-pembeli, alamat-tidak-valid, lainnya (note wajib).',
+        security: [{ bearerAuth: [] }],
+        parameters: [orderNoParam],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string', enum: ['stok-habis', 'permintaan-pembeli', 'alamat-tidak-valid', 'lainnya'] }, note: { type: 'string', maxLength: 200 } } } } } },
+        responses: {
+          200: orderResponse('Pesanan dibatalkan'),
+          400: errorResponse('Alasan tidak valid', 'VALIDATION_ERROR', 'Pilih alasan pembatalan', { reason: 'Pilih alasan pembatalan' }),
+          401: unauthorized,
+          404: orderNotFound,
+          409: errorResponse('Bukan Diproses lagi', 'INVALID_TRANSITION', 'Pesanan hanya bisa dibatalkan selama statusnya Diproses'),
+        },
+      },
+    },
+    '/api/v1/orders/{orderNumber}/payment-proof': {
+      put: {
+        tags: ['Orders'],
+        summary: 'Unggah bukti transfer (PNG/JPG maks 1 MB, pesanan transfer & Diproses)',
+        description: 'Body = file mentah. Nama file opsional di header X-File-Name (URL-encoded).',
+        security: [{ bearerAuth: [] }],
+        parameters: [orderNoParam, { name: 'X-File-Name', in: 'header', schema: { type: 'string' }, example: 'bukti-transfer.png' }],
+        requestBody: { required: true, content: { 'image/png': { schema: { type: 'string', format: 'binary' } }, 'image/jpeg': { schema: { type: 'string', format: 'binary' } } } },
+        responses: {
+          200: orderResponse('Pesanan dengan paymentProof'),
+          400: errorResponse('File kosong / bukan gambar', 'VALIDATION_ERROR', 'Isi file tidak cocok dengan format gambar'),
+          401: unauthorized,
+          404: orderNotFound,
+          409: errorResponse('Bukan transfer / bukan Diproses', 'NOT_ALLOWED', 'Bukti transfer hanya bisa diubah selama pesanan Diproses'),
+          413: errorResponse('Lebih dari 1 MB', 'PAYLOAD_TOO_LARGE', 'File harus PNG atau JPG, maksimal 1 MB'),
+          415: errorResponse('Bukan PNG/JPG', 'UNSUPPORTED_MEDIA_TYPE', 'File harus PNG atau JPG, maksimal 1 MB'),
+        },
+      },
+      get: { tags: ['Orders'], summary: 'Lihat bukti transfer sendiri', security: [{ bearerAuth: [] }], parameters: [orderNoParam], responses: { 200: imageOk, 401: unauthorized, 404: orderNotFound } },
+      delete: { tags: ['Orders'], summary: 'Hapus bukti transfer (saat Diproses)', security: [{ bearerAuth: [] }], parameters: [orderNoParam], responses: { 204: { description: 'Terhapus' }, 401: unauthorized, 404: orderNotFound, 409: errorResponse('Bukan Diproses', 'NOT_ALLOWED', 'Bukti transfer hanya bisa diubah selama pesanan Diproses') } },
+    },
+    '/api/v1/orders/{orderNumber}/tracking': {
+      get: {
+        tags: ['Orders'],
+        summary: 'Lacak paket (data latihan, setelah Dikirim)',
+        security: [{ bearerAuth: [] }],
+        parameters: [orderNoParam],
+        responses: { 200: { description: 'Kurir, resi, dan riwayat perjalanan (terbaru dulu)' }, 401: unauthorized, 404: orderNotFound, 409: errorResponse('Belum dikirim', 'NOT_SHIPPED', 'Paket belum dikirim') },
+      },
+    },
+    '/api/v1/payments/warungpay': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Bayar dengan WarungPay (e-wallet latihan)',
+        description: 'PIN latihan 123456, saldo Rp 2.000.000. Pakai paymentRef dari respons saat POST /api/v1/orders dengan paymentMethod ewallet.',
+        security: [{ bearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['phone', 'pin', 'amount'], properties: { phone: { type: 'string', example: '081234567890' }, pin: { type: 'string', example: '123456' }, amount: { type: 'integer', example: 229500 } } } } } },
+        responses: {
+          201: { description: 'Lunas', content: { 'application/json': { schema: { type: 'object', properties: { data: { type: 'object', properties: { paymentRef: { type: 'string', example: 'WPY-7K2XQ9PM' }, amount: { type: 'integer' }, paidAt: { type: 'string', format: 'date-time' } } } } } } } },
+          400: errorResponse('Data tidak valid', 'VALIDATION_ERROR', 'PIN harus 6 angka', { pin: 'PIN harus 6 angka' }),
+          401: errorResponse('Belum login / PIN salah', 'PAYMENT_DECLINED', 'PIN salah'),
+          402: errorResponse('Saldo kurang', 'INSUFFICIENT_BALANCE', 'Saldo WarungPay tidak cukup'),
+        },
+      },
+    },
+    '/api/v1/admin/orders': {
+      get: {
+        tags: ['Admin Orders'],
+        summary: 'Pesanan toko + jumlah per status (admin)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['diproses', 'dikirim', 'selesai', 'dibatalkan'] } },
+          { name: 'search', in: 'query', description: 'No. pesanan atau username pembeli', schema: { type: 'string' } },
+          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['createdAt', 'total'], default: 'createdAt' } },
+          { name: 'order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', enum: [5, 10, 20, 50], default: 10 } },
+        ],
+        responses: { 200: { description: 'data + meta (page, limit, total, totalPages, counts per status)' }, 400: errorResponse('Query tidak valid', 'VALIDATION_ERROR', 'Parameter tidak valid'), 401: unauthorized, 403: errorResponse('Bukan admin', 'FORBIDDEN', 'Hanya akun admin yang bisa mengelola pesanan toko.') },
+      },
+    },
+    '/api/v1/admin/orders/{orderNumber}': {
+      get: { tags: ['Admin Orders'], summary: 'Detail pesanan toko + riwayat status', security: [{ bearerAuth: [] }], parameters: [orderNoParam], responses: { 200: orderResponse('Pesanan'), 401: unauthorized, 403: errorResponse('Bukan admin', 'FORBIDDEN', 'Hanya akun admin yang bisa mengelola pesanan toko.'), 404: orderNotFound } },
+    },
+    '/api/v1/admin/orders/{orderNumber}/status': {
+      patch: {
+        tags: ['Admin Orders'],
+        summary: 'Ubah status pesanan',
+        description: 'Boleh: diproses → dikirim (courier + trackingNumber), diproses → dibatalkan (reason, note), dikirim → selesai. Lainnya 409 INVALID_TRANSITION.',
+        security: [{ bearerAuth: [] }],
+        parameters: [orderNoParam],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['status'],
+                properties: {
+                  status: { type: 'string', enum: ['dikirim', 'selesai', 'dibatalkan'] },
+                  courier: { type: 'string', enum: ['reguler', 'express', 'sameday'] },
+                  trackingNumber: { type: 'string', pattern: '^[A-Z0-9]{10,20}$', example: 'WQA1234567890' },
+                  reason: { type: 'string', enum: ['stok-habis', 'permintaan-pembeli', 'alamat-tidak-valid', 'lainnya'] },
+                  note: { type: 'string', maxLength: 200 },
+                },
+              },
+              examples: {
+                kirim: { value: { status: 'dikirim', courier: 'express', trackingNumber: 'WQA1234567890' } },
+                selesai: { value: { status: 'selesai' } },
+                batal: { value: { status: 'dibatalkan', reason: 'lainnya', note: 'Pembeli salah alamat' } },
+              },
+            },
+          },
+        },
+        responses: {
+          200: orderResponse('Status terbaru'),
+          400: errorResponse('Data tidak valid', 'VALIDATION_ERROR', 'Nomor resi harus 10–20 huruf kapital atau angka', { trackingNumber: 'Nomor resi harus 10–20 huruf kapital atau angka' }),
+          401: unauthorized,
+          403: errorResponse('Bukan admin', 'FORBIDDEN', 'Hanya akun admin yang bisa mengelola pesanan toko.'),
+          404: orderNotFound,
+          409: errorResponse('Transisi tidak boleh / berubah bersamaan', 'INVALID_TRANSITION', 'Status Dikirim tidak bisa diubah ke Dibatalkan'),
+        },
+      },
+    },
+    '/api/v1/admin/orders/{orderNumber}/payment-proof': {
+      get: { tags: ['Admin Orders'], summary: 'Lihat bukti transfer pembeli', security: [{ bearerAuth: [] }], parameters: [orderNoParam], responses: { 200: imageOk, 401: unauthorized, 403: errorResponse('Bukan admin', 'FORBIDDEN', 'Hanya akun admin yang bisa mengelola pesanan toko.'), 404: orderNotFound } },
+    },
+    '/api/v1/products/featured': {
+      get: { tags: ['Products'], summary: 'Produk unggulan (urutan Pilihan admin)', security: [{ bearerAuth: [] }], responses: { 200: { description: 'Daftar produk sesuai urutan' }, 401: unauthorized, 403: forbidden } },
+      put: {
+        tags: ['Products'],
+        summary: 'Atur urutan produk unggulan (maks 6)',
+        security: [{ bearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['ids'], properties: { ids: { type: 'array', items: { type: 'integer' }, maxItems: 6, example: [1, 6, 10] } } } } } },
+        responses: { 200: { description: 'Daftar terbaru' }, 400: errorResponse('Lebih dari 6 / dobel', 'VALIDATION_ERROR', 'Maksimal 6 produk unggulan'), 401: unauthorized, 403: forbidden, 404: errorResponse('Bukan produk akun ini', 'NOT_FOUND', 'Ada produk yang tidak ditemukan di katalog akun ini') },
+      },
+    },
+    '/api/v1/stock-movements': {
+      get: {
+        tags: ['Products'],
+        summary: 'Riwayat stok (cursor pagination, terbaru dulu)',
+        description: 'Ambil halaman berikutnya dengan cursor = meta.nextCursor. nextCursor null berarti sudah habis.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'cursor', in: 'query', schema: { type: 'string' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 } },
+          { name: 'productId', in: 'query', schema: { type: 'integer' } },
+          { name: 'reason', in: 'query', schema: { type: 'string', enum: ['order', 'cancel', 'admin', 'restock', 'offline'] } },
+        ],
+        responses: {
+          200: { description: 'data + meta (total, nextCursor)', content: { 'application/json': { schema: { type: 'object', properties: { data: { type: 'array', items: { $ref: '#/components/schemas/StockMovement' } }, meta: { type: 'object', properties: { total: { type: 'integer' }, nextCursor: { type: 'string', nullable: true } } } } } } } },
+          400: errorResponse('Query tidak valid', 'VALIDATION_ERROR', 'Parameter tidak valid', { cursor: 'Cursor tidak valid' }),
+          401: unauthorized,
+          403: forbidden,
+        },
       },
     },
   },

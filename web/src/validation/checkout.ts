@@ -17,6 +17,46 @@ export const CHECKOUT_MESSAGES = {
   paymentMethod: 'Pilih metode pembayaran',
   voucherRequired: 'Masukkan kode voucher',
   codLimit: 'COD hanya untuk total maksimal Rp 1.000.000',
+  shipDateRequired: 'Tanggal kirim wajib dipilih',
+  shipDateFormat: 'Format tanggal kirim harus YYYY-MM-DD',
+  shipDateWeekend: 'Tanggal kirim harus hari kerja (Senin–Jumat)',
+  shipDateRange: 'Tanggal kirim paling cepat besok dan paling lambat 14 hari lagi',
+  paymentRefRequired: 'Selesaikan pembayaran WarungPay dulu',
+  giftCardRequired: 'Masukkan kode gift card',
+}
+
+// ---------- Tanggal kirim (aturan sama dengan API) ----------
+
+export function todayJakarta(now = new Date()): string {
+  return new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
+export function addDays(dateText: string, days: number): string {
+  const d = new Date(`${dateText}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+export function isWeekend(dateText: string): boolean {
+  const day = new Date(`${dateText}T00:00:00Z`).getUTCDay()
+  return day === 0 || day === 6
+}
+
+export function validateShipDate(value: string, now = new Date()): string | undefined {
+  if (!value) return CHECKOUT_MESSAGES.shipDateRequired
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return CHECKOUT_MESSAGES.shipDateFormat
+  const d = new Date(`${value}T00:00:00Z`)
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value) return CHECKOUT_MESSAGES.shipDateFormat
+  const today = todayJakarta(now)
+  if (value < addDays(today, 1) || value > addDays(today, 14)) return CHECKOUT_MESSAGES.shipDateRange
+  if (isWeekend(value)) return CHECKOUT_MESSAGES.shipDateWeekend
+  return undefined
+}
+
+export function formatDateLong(dateText: string): string {
+  return new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(
+    new Date(`${dateText}T00:00:00Z`),
+  )
 }
 
 export const SHIPPING_OPTIONS = [

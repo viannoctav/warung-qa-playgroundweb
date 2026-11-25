@@ -130,4 +130,4 @@ function validateRegister(body, now = new Date()) {
   };
 }
 
-module.exports = { validateRegister, MESSAGES, GENDERS, todayInJakarta };
+module.exports = { validateRegister, validatePassword, MESSAGES, GENDERS, todayInJakarta };

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { clearCart, fetchCart, removeCartItem, updateCartItem } from '../api'
 import type { Cart, CartItem } from '../api'
 import AppShell from '../components/AppShell'
-import ConfirmModal from '../components/ConfirmModal'
 import ProductImage from '../components/ProductImage'
 import QuantityStepper from '../components/QuantityStepper'
 import { announceCartCount } from '../cart'
@@ -120,7 +119,6 @@ function CartLine({ item, token, onCart, onError }: {
 function CartContent({ token, reloadSignal }: { token: string; reloadSignal: number }) {
   const [cart, setCart] = useState<Cart | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [confirmClear, setConfirmClear] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [refreshTick, setRefreshTick] = useState(0)
 
@@ -146,9 +144,10 @@ function CartContent({ token, reloadSignal }: { token: string; reloadSignal: num
     }
   }, [token, reloadSignal, refreshTick, applyCart])
 
-  const cancelClear = useCallback(() => setConfirmClear(false), [])
-
+  // Dialog bawaan browser (window.confirm)
   async function handleClear() {
+    const count = cart?.items.length ?? 0
+    if (!window.confirm(`Kosongkan keranjang? ${count} produk akan dihapus.`)) return
     setClearing(true)
     try {
       await clearCart(token)
@@ -158,7 +157,6 @@ function CartContent({ token, reloadSignal }: { token: string; reloadSignal: num
       if (!handleUnauthorized(err)) setError(errorMessage(err))
     } finally {
       setClearing(false)
-      setConfirmClear(false)
     }
   }
 
@@ -179,9 +177,11 @@ function CartContent({ token, reloadSignal }: { token: string; reloadSignal: num
             className="btn btn-ghost btn-ghost-danger"
             id="cart-clear-btn"
             data-testid="cart-clear-btn"
-            onClick={() => setConfirmClear(true)}
+            disabled={clearing}
+            aria-busy={clearing}
+            onClick={handleClear}
           >
-            Kosongkan keranjang
+            {clearing ? 'Mengosongkan…' : 'Kosongkan keranjang'}
           </button>
         )}
       </div>
@@ -253,16 +253,6 @@ function CartContent({ token, reloadSignal }: { token: string; reloadSignal: num
         </div>
       )}
 
-      <ConfirmModal
-        open={confirmClear}
-        title="Kosongkan keranjang?"
-        message="Semua produk di keranjang akan dihapus."
-        confirmLabel="Kosongkan"
-        busyLabel="Mengosongkan…"
-        busy={clearing}
-        onConfirm={handleClear}
-        onCancel={cancelClear}
-      />
     </main>
   )
 }

@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { addToCart, fetchCart, fetchStoreProducts } from '../api'
 import type { Cart, ProductListResult } from '../api'
 import AppShell from '../components/AppShell'
+import CategoryMultiSelect from '../components/CategoryMultiSelect'
+import FlashSale from '../components/FlashSale'
+import PriceRange from '../components/PriceRange'
 import ProductImage from '../components/ProductImage'
 import { announceCartCount } from '../cart'
 import { errorMessage, handleUnauthorized } from '../errors'
@@ -11,9 +14,12 @@ import { showToast } from '../toast'
 import { CATEGORY_OPTIONS, categoryLabel, formatRupiah } from '../validation/product'
 
 const PAGE_SIZES = [12, 24, 48]
+const PRICE_MIN = 0
+const PRICE_MAX = 100000
 
 // Pilihan urutan: nilai = "sort:order"
 const SORT_OPTIONS = [
+  { value: 'featured:asc', label: 'Pilihan admin' },
   { value: 'name:asc', label: 'Nama A–Z' },
   { value: 'name:desc', label: 'Nama Z–A' },
   { value: 'price:asc', label: 'Harga termurah' },
@@ -33,8 +39,10 @@ function useDebounced<T>(value: T, delay: number): T {
 function ShopContent({ token, reloadSignal }: { token: string; reloadSignal: number }) {
   const [searchText, setSearchText] = useState('')
   const search = useDebounced(searchText.trim(), 300)
-  const [category, setCategory] = useState('')
-  const [sortValue, setSortValue] = useState('name:asc')
+  const [categories, setCategories] = useState<string[]>([])
+  const [priceInput, setPriceInput] = useState<[number, number]>([PRICE_MIN, PRICE_MAX])
+  const price = useDebounced(priceInput, 300)
+  const [sortValue, setSortValue] = useState('featured:asc')
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(12)
   const [result, setResult] = useState<ProductListResult | null>(null)
@@ -67,22 +75,35 @@ function ShopContent({ token, reloadSignal }: { token: string; reloadSignal: num
   // Stok & keranjang diperbarui otomatis tiap 10 detik dan saat tab kembali aktif
   useLiveRefresh(() => setRefreshTick((n) => n + 1))
 
+  const categoryKey = categories.join(',')
+  const priceKey = price.join('-')
   useEffect(() => {
     setPage(1)
-  }, [search, category, sortValue, limit])
+  }, [search, categoryKey, priceKey, sortValue, limit])
 
   const lastQuery = useRef('')
   useEffect(() => {
     let cancelled = false
     const [sort, order] = sortValue.split(':')
-    const queryKey = JSON.stringify([search, category, sortValue, page, limit, reloadSignal])
+    const queryKey = JSON.stringify([search, categoryKey, priceKey, sortValue, page, limit, reloadSignal])
     // Penyegaran berkala berjalan diam-diam (tanpa tulisan "Memuat")
     if (queryKey !== lastQuery.current) {
       lastQuery.current = queryKey
       setLoading(true)
       setError(null)
     }
-    fetchStoreProducts(token, { search, category, sort, order, page, limit })
+    fetchStoreProducts(token, {
+      search,
+      category: '',
+      categories: categoryKey ? categoryKey.split(',') : [],
+      // Batas bawah/atas penuh = tidak difilter (produk di atas Rp 100.000 tetap tampil)
+      minPrice: price[0] > PRICE_MIN ? price[0] : null,
+      maxPrice: price[1] < PRICE_MAX ? price[1] : null,
+      sort,
+      order,
+      page,
+      limit,
+    })
       .then((data) => {
         if (!cancelled) setResult(data)
       })
@@ -96,7 +117,7 @@ function ShopContent({ token, reloadSignal }: { token: string; reloadSignal: num
     return () => {
       cancelled = true
     }
-  }, [token, search, category, sortValue, page, limit, reloadSignal, refreshTick])
+  }, [token, search, categoryKey, priceKey, sortValue, page, limit, reloadSignal, refreshTick])
 
   async function handleAdd(productId: number, name: string) {
     if (pending.has(productId)) return
@@ -127,7 +148,7 @@ function ShopContent({ token, reloadSignal }: { token: string; reloadSignal: num
 
   const items = result?.data ?? []
   const meta = result?.meta
-  const filtersActive = searchText !== '' || category !== ''
+  const filtersActive = searchText !== '' || categories.length > 0 || priceInput[0] !== PRICE_MIN || priceInput[1] !== PRICE_MAX
 
   return (
     <main className="page" id="shop-page" data-testid="shop-page">
@@ -142,8 +163,11 @@ function ShopContent({ token, reloadSignal }: { token: string; reloadSignal: num
         </div>
       </div>
 
-      <div className="toolbar">
-        <div className="field toolbar-search">
+      <FlashSale />
+
+      <div className="shop-layout">
+      <aside className="shop-filters" aria-label="Filter produk">
+        <div className="field">
           <label htmlFor="shop-search-input">Cari</label>
           <input
             type="text"
@@ -156,23 +180,14 @@ function ShopContent({ token, reloadSignal }: { token: string; reloadSignal: num
             onChange={(e) => setSearchText(e.target.value)}
           />
         </div>
-        <div className="field">
-          <label htmlFor="shop-category-filter">Kategori</label>
-          <select
-            id="shop-category-filter"
-            data-testid="shop-category-filter"
-            name="category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            <option value="">Semua kategori</option>
-            {CATEGORY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <CategoryMultiSelect
+          idPrefix="shop-category"
+          label="Kategori"
+          options={CATEGORY_OPTIONS}
+          value={categories}
+          onChange={setCategories}
+        />
+        <PriceRange idPrefix="shop-price" min={PRICE_MIN} max={PRICE_MAX} step={1000} value={priceInput} onChange={setPriceInput} />
         <div className="field">
           <label htmlFor="shop-sort-select">Urutkan</label>
           <select
@@ -189,8 +204,24 @@ function ShopContent({ token, reloadSignal }: { token: string; reloadSignal: num
             ))}
           </select>
         </div>
-      </div>
+        {filtersActive && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            id="shop-reset-filters-btn"
+            data-testid="shop-reset-filters-btn"
+            onClick={() => {
+              setSearchText('')
+              setCategories([])
+              setPriceInput([PRICE_MIN, PRICE_MAX])
+            }}
+          >
+            Hapus semua filter
+          </button>
+        )}
+      </aside>
 
+      <section className="shop-results">
       {error && (
         <div className="alert alert-error" id="shop-error-alert" data-testid="shop-error-alert" role="alert">
           {error}
@@ -215,7 +246,8 @@ function ShopContent({ token, reloadSignal }: { token: string; reloadSignal: num
                 data-testid="shop-clear-filters-btn"
                 onClick={() => {
                   setSearchText('')
-                  setCategory('')
+                  setCategories([])
+                  setPriceInput([PRICE_MIN, PRICE_MAX])
                 }}
               >
                 Hapus filter
@@ -326,6 +358,8 @@ function ShopContent({ token, reloadSignal }: { token: string; reloadSignal: num
             Berikutnya
           </button>
         </div>
+      </div>
+      </section>
       </div>
     </main>
   )

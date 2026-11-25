@@ -39,4 +39,48 @@ const SEED_PRODUCTS = [
   { sku: 'MNM-0005', name: 'Minuman Isotonik 500 ml', category: 'minuman-kemasan', price: 8500, stock: 72, isActive: true, description: 'Minuman pengganti ion tubuh.' },
 ];
 
-module.exports = { CATEGORIES, CATEGORY_VALUES, SEED_PRODUCTS };
+// Produk unggulan awal (urutan "Pilihan admin" di Toko)
+const FEATURED_SKUS = ['KOP-0001', 'TEH-0002', 'MKR-0001', 'BMB-0002'];
+
+// Pengacak sederhana yang hasilnya selalu sama untuk teks yang sama
+function seededRandom(text) {
+  let h = 2166136261;
+  for (const ch of text) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Riwayat stok contoh: 21 catatan per produk selama ±30 hari terakhir (24 produk ≈ 504 baris).
+ * Dihitung mundur dari stok sekarang supaya stok akhir tiap baris tetap masuk akal.
+ * products: [{ sku, stock }]
+ */
+function buildMovements(products) {
+  const rows = [];
+  products.forEach((product, index) => {
+    const random = seededRandom(product.sku);
+    let after = product.stock;
+    let ago = 30 + index * 7;
+    for (let k = 0; k < 21; k += 1) {
+      const restock = random() < 0.35 && after >= 10;
+      const change = restock ? Math.min(after, 10 + Math.floor(random() * 31)) : -(1 + Math.floor(random() * 5));
+      rows.push({
+        sku: product.sku,
+        change,
+        reason: restock ? 'restock' : 'offline',
+        ref: restock ? 'Restok pemasok' : 'Penjualan di warung',
+        after,
+        ago,
+      });
+      after -= change;
+      ago += 1300 + Math.floor(random() * 700);
+    }
+  });
+  return rows;
+}
+
+module.exports = { CATEGORIES, CATEGORY_VALUES, SEED_PRODUCTS, FEATURED_SKUS, buildMovements };

@@ -5,6 +5,7 @@ require('dotenv').config({ quiet: true });
 const bcrypt = require('bcryptjs');
 const { getSql } = require('../src/db');
 const { DEMO_PASSWORD, DEMO_USERS } = require('../src/seed-data');
+const { buildMovements, FEATURED_SKUS } = require('../src/products/catalog');
 
 async function main() {
   const sql = getSql();
@@ -113,6 +114,94 @@ async function main() {
       subtotal INTEGER NOT NULL
     )
   `;
+
+  // Status pesanan, widget checkout & pesanan (Fase 5)
+  await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS featured_rank INTEGER`;
+  for (const statement of [
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier TEXT`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number TEXT`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancel_note TEXT`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS ship_date DATE`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS gift_card_code TEXT`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS gift_card_discount INTEGER NOT NULL DEFAULT 0`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_ref TEXT`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS proof_data TEXT`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS proof_type TEXT`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS proof_size INTEGER`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS proof_name TEXT`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS proof_uploaded_at TIMESTAMPTZ`,
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`,
+  ]) {
+    await statement;
+  }
+  await sql`CREATE INDEX IF NOT EXISTS orders_store ON orders (store_owner_id, created_at)`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS order_status_history (
+      id SERIAL PRIMARY KEY,
+      order_id INTEGER NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
+      status TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      note TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  // Pesanan lama (sebelum fitur ini) diberi riwayat awal "Diproses"
+  await sql`
+    INSERT INTO order_status_history (order_id, status, actor, note, created_at)
+    SELECT o.id, 'diproses', u.username, 'Pesanan dibuat', o.created_at
+    FROM orders o JOIN users u ON u.id = o.user_id
+    WHERE NOT EXISTS (SELECT 1 FROM order_status_history h WHERE h.order_id = o.id)
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS stock_movements (
+      id SERIAL PRIMARY KEY,
+      owner_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      product_id INTEGER NOT NULL REFERENCES products (id) ON DELETE CASCADE,
+      product_name TEXT NOT NULL,
+      change INTEGER NOT NULL,
+      reason TEXT NOT NULL,
+      ref TEXT NOT NULL DEFAULT '',
+      stock_after INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS stock_movements_owner ON stock_movements (owner_id, id)`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS payments (
+      ref TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      phone TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      order_number TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  // Katalog yang sudah ada sebelum fitur riwayat stok: isi riwayat contoh & produk unggulan
+  const owners = await sql`
+    SELECT DISTINCT p.owner_id FROM products p
+    WHERE NOT EXISTS (SELECT 1 FROM stock_movements m WHERE m.owner_id = p.owner_id)
+  `;
+  for (const { owner_id: ownerId } of owners) {
+    const products = await sql`SELECT sku, stock FROM products WHERE owner_id = ${ownerId}`;
+    await sql`
+      INSERT INTO stock_movements (owner_id, product_id, product_name, change, reason, ref, stock_after, created_at)
+      SELECT ${ownerId}, p.id, p.name, x.change, x.reason, x.ref, x.after, now() - make_interval(mins => x.ago)
+      FROM jsonb_to_recordset(${JSON.stringify(buildMovements(products))}::jsonb)
+        AS x(sku text, change int, reason text, ref text, after int, ago int)
+      JOIN products p ON p.owner_id = ${ownerId} AND p.sku = x.sku
+      ORDER BY x.ago DESC
+    `;
+    await sql`
+      UPDATE products p SET featured_rank = f.rank
+      FROM jsonb_to_recordset(${JSON.stringify(FEATURED_SKUS.map((sku, i) => ({ sku, rank: i + 1 })))}::jsonb) AS f(sku text, rank int)
+      WHERE p.owner_id = ${ownerId} AND p.sku = f.sku
+        AND NOT EXISTS (SELECT 1 FROM products q WHERE q.owner_id = ${ownerId} AND q.featured_rank IS NOT NULL)
+    `;
+  }
+
+  // Akun hasil registrasi selalu role user; admin hanya admin_user
+  await sql`UPDATE users SET role = 'user' WHERE is_demo = false AND role <> 'user'`;
 
   const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
   for (const user of DEMO_USERS) {

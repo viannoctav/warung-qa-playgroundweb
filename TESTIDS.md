@@ -51,12 +51,15 @@ Pesan error per field: `register-{field}-error`, dengan `{field}` = `fullname`, 
 
 ## Header (setelah login)
 
-| Elemen | `data-testid` |
-| --- | --- |
-| Nama pengguna | `header-username` |
-| Badge admin | `header-admin-badge` |
-| Tombol Reset Data | `header-reset-btn` |
-| Tombol Keluar | `header-logout-btn` |
+Reset Data dan Keluar ada di dalam **menu akun**. Buka dulu menunya (hover, klik, atau Enter / panah bawah), baru klik itemnya.
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Tombol menu akun | `header-account-menu-btn` | Berisi nama dan badge admin. `aria-expanded` = `true` saat terbuka |
+| Nama pengguna | `header-username` | |
+| Badge admin | `header-admin-badge` | |
+| Daftar menu | `header-account-menu` | Hanya ada di DOM saat terbuka. Tertutup 300 ms setelah kursor keluar, atau Esc |
+| Item: Pesanan Saya / Reset Data / Keluar | `header-menu-orders-btn`, `header-reset-btn`, `header-logout-btn` | Panah atas/bawah pindah item, Home/End ke ujung |
 
 ## Produk (`/products`)
 
@@ -107,17 +110,22 @@ Pesan error per field: `register-{field}-error`, dengan `{field}` = `fullname`, 
 
 | Elemen | `data-testid` | Catatan |
 | --- | --- | --- |
-| Menu Toko / Kelola Produk / Pesanan | `nav-shop-link`, `nav-products-link`, `nav-orders-link` | `nav-products-link` hanya untuk admin. Menu aktif punya `aria-current="page"` |
+| Menu Toko / Kelola Produk / Kelola User / Pesanan Toko / Pesanan Saya | `nav-shop-link`, `nav-products-link`, `nav-users-link`, `nav-store-orders-link`, `nav-orders-link` | Kelola Produk, Kelola User, Pesanan Toko hanya untuk admin. Menu aktif punya `aria-current="page"` |
 | Keranjang + jumlah barang | `nav-cart-link`, `nav-cart-count` | |
-| Nama akun / badge admin | `header-username`, `header-admin-badge` | |
-| Reset Data / Keluar | `header-reset-btn`, `header-logout-btn` | |
+| Menu akun | lihat bagian Header di atas | |
 
 ## Toko (`/shop`)
 
 | Elemen | `data-testid` | Catatan |
 | --- | --- | --- |
 | Kontainer / judul / jumlah | `shop-page`, `shop-title`, `shop-total` | "22 produk tersedia" (hanya produk aktif) |
-| Cari / kategori / urutkan | `shop-search-input`, `shop-category-filter`, `shop-sort-select` | Nilai sort: `name:asc`, `name:desc`, `price:asc`, `price:desc`, `createdAt:desc` |
+| Cari / urutkan | `shop-search-input`, `shop-sort-select` | Default `featured:asc` ("Pilihan admin": urutan Produk unggulan dulu). Lainnya: `name:asc`, `name:desc`, `price:asc`, `price:desc`, `createdAt:desc` |
+| Kategori (multi-select, bisa diketik) | `shop-category-input`, `shop-category-listbox`, `shop-category-option-{kategori}`, `shop-category-no-option` | Kategori: `kopi`, `teh`, `makanan-ringan`, `bumbu-dapur`, `minuman-kemasan` |
+| Chip kategori terpilih | `shop-category-chip-{kategori}`, `shop-category-chip-remove-{kategori}` | |
+| Rentang harga (slider 2 ujung) | `shop-price-min-slider`, `shop-price-max-slider` | 0–100.000, langkah 1.000 |
+| Rentang harga (ketik) | `shop-price-min-input`, `shop-price-max-input`, `shop-price-label`, `shop-price-error` | Diterapkan saat Enter / keluar dari input |
+| Reset semua filter | `shop-reset-filters-btn` | |
+| Flash sale | `flash-sale-banner`, `flash-sale-loading`, `flash-sale-claim-btn`, `flash-sale-expired`, `flash-sale-retry-btn`, `flash-sale-code`, `flash-sale-copy-btn` | Latihan *wait*: tombol Klaim muncul acak 3–8 detik, hilang lagi setelah 15 detik. Kode: `FLASH15` |
 | Grid | `shop-grid` | |
 | Kartu produk | `shop-card-{id}` | |
 | Link kartu (ke detail) | `shop-card-link-{id}` | |
@@ -151,7 +159,7 @@ Pesan error per field: `register-{field}-error`, dengan `{field}` = `fullname`, 
 | Jumlah | `cart-item-quantity-{productId}-decrease-btn`, `cart-item-quantity-{productId}-input`, `cart-item-quantity-{productId}-increase-btn` | Disimpan saat klik −/+, Enter, atau keluar dari input |
 | Pesan per baris | `cart-item-error-{productId}` | Jumlah tidak valid, stok kurang, produk tidak dijual lagi |
 | Hapus baris | `cart-item-remove-btn-{productId}` | |
-| Kosongkan keranjang | `cart-clear-btn` | Pakai modal konfirmasi |
+| Kosongkan keranjang | `cart-clear-btn` | Pakai **dialog bawaan browser** `confirm`: "Kosongkan keranjang? N produk akan dihapus." |
 | Ringkasan | `cart-summary`, `cart-summary-count`, `cart-summary-subtotal` | |
 | Catatan ada masalah | `cart-problem-note` | Tombol checkout nonaktif |
 | Checkout / lanjut belanja | `cart-checkout-btn`, `cart-continue-link` | |
@@ -169,14 +177,18 @@ Pesan error per field: `register-{field}-error`, dengan `{field}` = `fullname`, 
 | Tombol langkah 1 | `checkout-back-cart-link`, `checkout-address-next-btn` | |
 | Langkah 2 | `checkout-shipping-step` | |
 | Pilihan kurir | `checkout-shipping-reguler-radio`, `checkout-shipping-express-radio`, `checkout-shipping-sameday-radio` | |
+| Tanggal kirim (ketik) | `checkout-ship-date-input`, `checkout-ship-date-hint`, `checkout-ship-date-error` | Format `YYYY-MM-DD`. Hari kerja saja, besok s.d. 14 hari lagi (WIB) |
+| Tanggal kirim (kalender) | `checkout-ship-date-toggle-btn`, `checkout-ship-date-calendar`, `checkout-ship-date-prev-btn`, `checkout-ship-date-next-btn`, `checkout-ship-date-month`, `checkout-ship-date-day-{YYYY-MM-DD}` | Tanggal yang tidak boleh dipilih = `disabled`. Panah kiri/kanan/atas/bawah di dalam kalender |
 | Error / tombol langkah 2 | `checkout-shipping-error`, `checkout-shipping-back-btn`, `checkout-shipping-next-btn` | |
 | Langkah 3 | `checkout-payment-step` | |
 | Pilihan pembayaran | `checkout-payment-transfer-radio`, `checkout-payment-ewallet-radio`, `checkout-payment-cod-radio` | |
-| Error pembayaran | `checkout-payment-error` | Termasuk batas COD |
+| Error pembayaran | `checkout-payment-error` | Termasuk batas COD dan "Selesaikan pembayaran WarungPay dulu" |
+| E-wallet (iframe) | `checkout-warungpay`, `checkout-warungpay-iframe`, `checkout-warungpay-paid`, `checkout-warungpay-stale` | Isi form ada **di dalam iframe**, lihat bagian WarungPay |
+| Gift card (shadow DOM) | host `checkout-gift-card`; di dalam shadow root: `checkout-gift-card-input`, `checkout-gift-card-apply-btn`, `checkout-gift-card-message` | Kode: `GIFT-7788-WQA` (Rp 20.000), `GIFT-5000-WQA` (Rp 50.000) |
 | Voucher | `checkout-voucher-input`, `checkout-voucher-apply-btn`, `checkout-voucher-remove-btn` | |
 | Pesan voucher | `checkout-voucher-error`, `checkout-voucher-success` | |
 | Tombol langkah 3 | `checkout-payment-back-btn`, `checkout-place-order-btn` | |
-| Ringkasan | `checkout-summary`, `checkout-summary-item-{productId}`, `checkout-summary-subtotal`, `checkout-summary-shipping`, `checkout-summary-discount`, `checkout-summary-total` | |
+| Ringkasan | `checkout-summary`, `checkout-summary-item-{productId}`, `checkout-summary-subtotal`, `checkout-summary-shipping`, `checkout-summary-discount`, `checkout-summary-gift-card`, `checkout-summary-ship-date`, `checkout-summary-total` | |
 | Error | `checkout-error-alert`, `checkout-error-cart-link`, `checkout-problem-alert` | |
 | Keranjang kosong | `checkout-empty`, `checkout-shop-link` | |
 
@@ -187,17 +199,162 @@ Pesan error per field: `register-{field}-error`, dengan `{field}` = `fullname`, 
 | Daftar: kontainer / judul / jumlah | `orders-page`, `orders-title`, `orders-total` | |
 | Tabel | `orders-table` | |
 | Baris | `orders-row-{nomor}` | Nomor contoh `WQA-20261124-K7Q2ZP` |
-| Sel | `orders-cell-{number\|date\|items\|total\|status}-{nomor}` | |
+| Filter tanggal cepat | `orders-preset-all-btn`, `orders-preset-today-btn`, `orders-preset-7-btn`, `orders-preset-30-btn` | Tombol aktif punya `aria-pressed="true"` |
+| Filter tanggal | `orders-from-input`, `orders-to-input`, `orders-date-error` | `<input type="date">` |
+| Sel | `orders-cell-{number\|date\|items\|total}-{nomor}`, `orders-cell-status-{nomor}` | Status punya `data-status` = `diproses` / `dikirim` / `selesai` / `dibatalkan` |
 | Link detail | `orders-detail-link-{nomor}` | |
 | Kosong / error | `orders-empty`, `orders-shop-link`, `orders-error-alert` | |
 | Halaman sukses | `order-success-page`, `order-success-banner`, `order-success-title` | |
 | Nomor / total di banner | `order-success-banner-number`, `order-success-banner-total` | |
 | Link di banner | `order-success-detail-link`, `order-success-shop-link` | |
-| Detail: kontainer / nomor / tanggal / status | `order-detail-page`, `order-detail-number`, `order-detail-date`, `order-detail-status` | |
+| Detail: kontainer / nomor / tanggal / status | `order-detail-page`, `order-detail-number`, `order-detail-date`, `order-detail-status` | Status punya `data-status` |
+| Riwayat status | `order-detail-timeline`, `order-detail-timeline-{status}` | `data-state` = `done` / `now` / `todo` |
+| Batalkan pesanan | `order-detail-cancel-btn`, `order-detail-cancel-note` | Hanya saat Diproses. Buka modal batal (lihat Modal form) |
+| Bukti transfer (hanya pembayaran transfer) | `order-proof-section`, `order-proof-dropzone`, `order-proof-input`, `order-proof-uploading`, `order-proof-error` | Drag & drop atau pilih file. PNG/JPG maks 1 MB. Bisa diganti/dihapus selama Diproses |
+| File bukti | `order-proof-file`, `order-proof-preview`, `order-proof-name`, `order-proof-delete-btn`, `order-proof-none` | |
+| Dokumen (tab baru) | `order-detail-invoice-link`, `order-detail-tracking-link` | `target="_blank"`. Link lacak `aria-disabled="true"` sebelum Dikirim |
 | Breadcrumb | `order-detail-breadcrumb-orders` | |
-| Isi (awalan `order-detail` atau `order-success`) | `{awalan}-items-table`, `{awalan}-item-{sku}`, `{awalan}-address`, `{awalan}-shipping-method`, `{awalan}-payment-method` | |
-| Rincian bayar | `{awalan}-summary`, `{awalan}-subtotal`, `{awalan}-shipping-cost`, `{awalan}-discount`, `{awalan}-total` | |
+| Isi (awalan `order-detail`, `order-success`, atau `store-order`) | `{awalan}-items-table`, `{awalan}-item-{sku}`, `{awalan}-address`, `{awalan}-ship-date`, `{awalan}-shipping-method`, `{awalan}-tracking-number`, `{awalan}-payment-method`, `{awalan}-cancel-reason` | |
+| Rincian bayar | `{awalan}-summary`, `{awalan}-subtotal`, `{awalan}-shipping-cost`, `{awalan}-discount`, `{awalan}-gift-card`, `{awalan}-total` | |
 | Tidak ditemukan | `order-not-found`, `order-back-link` | Pesanan akun lain juga "tidak ditemukan" |
+
+## Kelola User (`/admin/users`, khusus admin)
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Kontainer / judul / jumlah | `users-page`, `users-title`, `users-total` | "8 user" |
+| Catatan | `users-note` | |
+| Cari / role / jenis | `users-search-input`, `users-role-filter`, `users-type-filter` | role: `user`/`admin`; jenis: `registered`/`demo`. Cari dikirim 300 ms setelah berhenti mengetik |
+| Hapus terpilih | `users-bulk-delete-btn` | Muncul saat ada yang dipilih, teks "Hapus (n)". Pakai dialog bawaan browser `confirm` |
+| Tabel | `users-table` | |
+| Tombol sort | `users-sort-username-btn`, `users-sort-fullName-btn`, `users-sort-createdAt-btn` | Kolom aktif punya `aria-sort` |
+| Pilih semua | `users-select-all-checkbox` | Hanya akun registrasi; bisa indeterminate |
+| Baris | `users-row-{id}` | |
+| Checkbox baris | `users-select-checkbox-{id}` | Nonaktif untuk akun demo |
+| Sel | `users-cell-{username\|fullname\|email\|role\|type\|created\|expires}-{id}` | Akun sendiri ditandai "(kamu)"; akun demo: "Selalu aktif" |
+| Edit / Lihat | `users-edit-btn-{id}` | Teks "Lihat" untuk akun demo |
+| Hapus baris | `users-delete-btn-{id}` | Nonaktif untuk akun demo. Pakai dialog bawaan browser `prompt`: ketik username. Salah ketik → `alert` "Username tidak cocok. Akun tidak dihapus." |
+| Kosong / error | `users-empty`, `users-clear-filters-btn`, `users-error-alert` | |
+| Pagination | `users-page-prev-btn`, `users-page-next-btn`, `users-page-info`, `users-page-size-select` | 5 / 10 / 20 / 50 |
+
+## Edit user (`/admin/users/{id}`, khusus admin)
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Kontainer / judul / info / role | `user-edit-page`, `user-edit-title`, `user-edit-meta`, `user-edit-role` | Judul "Edit user" atau "Detail user" (demo) |
+| Link kembali | `user-edit-back-link` | |
+| Catatan akun demo | `user-edit-demo-note` | Form jadi hanya-baca, bagian password & hapus tidak tampil |
+| Form data diri | `user-edit-form` | |
+| Field | `user-edit-fullname-input`, `user-edit-username-input`, `user-edit-email-input`, `user-edit-phone-input`, `user-edit-birthdate-input` | |
+| Jenis kelamin | `user-edit-gender-radio-female`, `user-edit-gender-radio-male`, `user-edit-gender-radio-unspecified` | |
+| Error per field | `user-edit-{fullname\|username\|email\|phone\|birthdate\|gender}-error` | Pesan sama dengan registrasi |
+| Error server | `user-edit-error-alert` | Contoh 409 email sudah terdaftar |
+| Batalkan / Simpan | `user-edit-reset-btn`, `user-edit-save-btn` | Nonaktif kalau belum ada perubahan |
+| Form ganti password | `user-password-form` | |
+| Password baru / tampilkan / kekuatan | `user-password-new-input`, `user-password-toggle-btn`, `user-password-strength` | Lemah / Sedang / Kuat |
+| Konfirmasi | `user-password-confirm-input` | |
+| Error | `user-password-new-error`, `user-password-confirm-error`, `user-password-error-alert` | |
+| Simpan password | `user-password-save-btn` | |
+| Hapus | `user-delete-section`, `user-delete-btn` | Pakai dialog bawaan browser `prompt` (ketik username), sama seperti di daftar |
+| Loading / tidak ditemukan | `user-edit-loading`, `user-not-found`, `user-not-found-back-link`, `user-edit-load-error` | |
+
+## Kelola Produk: tab
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Tab | `products-tabs`, `products-tab-list`, `products-tab-featured`, `products-tab-stock` | Tiap tab punya URL: `/products`, `/products/featured`, `/products/stock-history`. Tab aktif punya `aria-current="page"` |
+
+## Produk unggulan (`/products/featured`, khusus admin)
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Kontainer / judul / jumlah slot | `featured-page`, `featured-title`, `featured-count` | Maks 6 produk |
+| Daftar | `featured-list` | |
+| Kartu (bisa di-drag) | `featured-item-{id}` | `draggable`, `data-position` = urutan (1 = paling atas) |
+| Nomor urut / gambar | `featured-rank-{id}`, `featured-image-{id}` | |
+| Naik / turun / keluarkan | `featured-up-btn-{id}`, `featured-down-btn-{id}`, `featured-remove-btn-{id}` | Alternatif drag & drop |
+| Tambah produk | `featured-add-select`, `featured-add-btn`, `featured-full-note` | Nonaktif kalau slot penuh |
+| Belum disimpan | `featured-dirty-note` | |
+| Batalkan perubahan / simpan | `featured-undo-btn`, `featured-save-btn` | Nonaktif kalau tidak ada perubahan |
+| Kosong / error | `featured-empty`, `featured-error-alert` | |
+
+## Riwayat stok (`/products/stock-history`, khusus admin)
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Kontainer / judul / jumlah | `stock-history-page`, `stock-history-title`, `stock-history-total` | "Menampilkan 50 dari 504 catatan" |
+| Filter produk / jenis | `stock-history-product-filter`, `stock-history-reason-filter` | Jenis: `order` Terjual, `cancel` Pesanan dibatalkan, `admin` Diubah admin, `restock` Restok, `offline` Penjualan offline |
+| Tabel / baris | `stock-history-table`, `stock-history-row-{id}` | Baris punya `data-reason` |
+| Perubahan / stok akhir | `stock-history-change-{id}`, `stock-history-after-{id}` | |
+| Infinite scroll | `stock-history-sentinel`, `stock-history-loading`, `stock-history-end` | Scroll sampai sentinel terlihat → 50 baris berikutnya |
+| Error | `stock-history-error-alert`, `stock-history-retry-btn` | |
+| Kosong | `stock-history-empty` | |
+
+## Pesanan Toko (`/admin/orders`, khusus admin)
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Kontainer / judul / jumlah | `store-orders-page`, `store-orders-title`, `store-orders-total` | |
+| Tab status + jumlah | `store-orders-tab-{all\|diproses\|dikirim\|selesai\|dibatalkan}`, `store-orders-tab-{...}-count` | `role="tab"`, aktif punya `aria-selected="true"` |
+| Cari / urutkan | `store-orders-search-input`, `store-orders-sort-select` | Cari nomor pesanan atau username pembeli. Sort: `createdAt:desc`, `createdAt:asc`, `total:desc`, `total:asc` |
+| Tabel / baris | `store-orders-table`, `store-orders-row-{nomor}` | |
+| Sel | `store-orders-cell-{number\|buyer\|date\|total}-{nomor}`, `store-orders-cell-status-{nomor}` | Status punya `data-status` |
+| Aksi baris | `store-orders-ship-btn-{nomor}`, `store-orders-cancel-btn-{nomor}`, `store-orders-complete-btn-{nomor}`, `store-orders-detail-link-{nomor}` | Kirim & Batalkan saat Diproses, Selesaikan saat Dikirim |
+| Loading / kosong / error | `store-orders-loading`, `store-orders-empty`, `store-orders-error-alert` | |
+| Pagination | `store-orders-page-prev-btn`, `store-orders-page-next-btn`, `store-orders-page-info`, `store-orders-page-size-select` | 5 / 10 / 20 / 50 |
+
+## Detail pesanan toko (`/admin/orders/{nomor}`, khusus admin)
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Kontainer / nomor / pembeli / status | `store-order-page`, `store-order-number`, `store-order-meta`, `store-order-buyer`, `store-order-status` | |
+| Breadcrumb | `store-order-breadcrumb-orders` | |
+| Riwayat status | `store-order-timeline`, `store-order-timeline-{status}` | `data-state` = `done` / `now` / `todo` |
+| Panel ubah status | `store-order-status-panel`, `store-order-status-hint` | |
+| Tombol status | `store-order-ship-btn-{nomor}`, `store-order-cancel-btn-{nomor}`, `store-order-complete-btn-{nomor}` | Selesaikan pakai dialog bawaan browser `confirm` |
+| Bukti transfer | `store-order-proof-section`, `store-order-proof-file`, `store-order-proof-preview`, `store-order-proof-name`, `store-order-proof-none` | |
+| Tidak ditemukan / error | `store-order-not-found`, `store-order-back-link`, `store-order-error-alert` | |
+
+## Modal form (Kirim & Batalkan pesanan)
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Modal Kirim | `ship-order-modal`, `ship-order-modal-title`, `ship-order-modal-error`, `ship-order-modal-backdrop` | |
+| Kurir / resi | `ship-order-courier-select`, `ship-order-courier-error`, `ship-order-tracking-input`, `ship-order-tracking-error` | Resi: 10–20 huruf kapital atau angka |
+| Tombol | `ship-order-modal-cancel-btn`, `ship-order-modal-submit-btn` | |
+| Modal Batal | `cancel-order-modal`, `cancel-order-modal-title`, `cancel-order-modal-error`, `cancel-order-modal-backdrop` | Dipakai admin dan pembeli |
+| Alasan / catatan | `cancel-order-reason-select`, `cancel-order-reason-error`, `cancel-order-note-input`, `cancel-order-note-counter`, `cancel-order-note-error` | Alasan: `stok-habis`, `permintaan-pembeli`, `alamat-tidak-valid`, `lainnya` (catatan wajib). Catatan maks 200 karakter |
+| Tombol | `cancel-order-modal-cancel-btn`, `cancel-order-modal-submit-btn` | |
+
+## Invoice & lacak paket (tab baru, tanpa header)
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Invoice | `invoice-page`, `invoice-title`, `invoice-number`, `invoice-date`, `invoice-print-btn` | `/orders/{nomor}/invoice` |
+| Isi invoice | `invoice-recipient`, `invoice-payment`, `invoice-status`, `invoice-items-table`, `invoice-item-{sku}` | |
+| Total invoice | `invoice-subtotal`, `invoice-shipping-cost`, `invoice-discount`, `invoice-gift-card`, `invoice-total` | |
+| Lacak paket | `tracking-page`, `tracking-title`, `tracking-order-number`, `tracking-status`, `tracking-courier`, `tracking-number` | `/orders/{nomor}/tracking` |
+| Event | `tracking-events`, `tracking-event-{n}` | `n = 0` = paling baru |
+| Belum dikirim | `tracking-not-shipped` | |
+| Tanpa sesi / error | `invoice-login-required`, `tracking-login-required`, `invoice-error`, `tracking-error` | |
+
+## WarungPay (`/warungpay`, di dalam iframe Checkout)
+
+| Elemen | `data-testid` | Catatan |
+| --- | --- | --- |
+| Halaman / nominal | `warungpay-page`, `warungpay-amount` | Pindah ke iframe dulu (`frameLocator` / `switchTo().frame`) |
+| Form | `warungpay-form`, `warungpay-phone-input`, `warungpay-pin-input`, `warungpay-pay-btn` | PIN latihan `123456`, saldo Rp 2.000.000 |
+| Error | `warungpay-phone-error`, `warungpay-pin-error`, `warungpay-error` | PIN salah tampil di `warungpay-pin-error` |
+| Berhasil | `warungpay-success`, `warungpay-ref` | Iframe mengirim `postMessage` ke halaman Checkout |
+
+## Dialog bawaan browser
+
+| Di mana | Jenis | Teks |
+| --- | --- | --- |
+| Keranjang, Kosongkan | `confirm` | "Kosongkan keranjang? N produk akan dihapus." |
+| Kelola User, hapus satu (daftar & halaman edit) | `prompt`, lalu `alert` kalau salah | "Ketik username X untuk menghapus akun ini." |
+| Kelola User, hapus terpilih | `confirm` | "Hapus N user? ..." |
+| Pesanan Toko, Selesaikan | `confirm` | "Tandai {nomor} sebagai Selesai? ..." |
 
 ## Modal konfirmasi (semua halaman)
 

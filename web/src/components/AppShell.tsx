@@ -6,6 +6,7 @@ import { clearSession, getStoredUser, getToken } from '../auth'
 import { CART_EVENT, announceCartCount } from '../cart'
 import { Link, navigate, usePath } from '../router'
 import { showToast } from '../toast'
+import AccountMenu from './AccountMenu'
 import ConfirmModal from './ConfirmModal'
 import FlashToast from './FlashToast'
 
@@ -14,7 +15,7 @@ type Props = {
   onReset?: () => void
 }
 
-// Kerangka halaman setelah login: header (logo, nama, Reset Data, Keluar) + isi halaman
+// Kerangka halaman setelah login: header (logo, menu, menu akun berisi Reset Data & Keluar) + isi halaman
 export default function AppShell({ children, onReset }: Props) {
   const token = getToken() ?? ''
   const [user, setUser] = useState<User | null>(getStoredUser)
@@ -117,7 +118,11 @@ export default function AppShell({ children, onReset }: Props) {
           {navLink('/shop', 'Toko', 'nav-shop-link', path === '/shop' || path.startsWith('/shop/'))}
           {user?.role === 'admin' &&
             navLink('/products', 'Kelola Produk', 'nav-products-link', path.startsWith('/products'))}
-          {navLink('/orders', 'Pesanan', 'nav-orders-link', path.startsWith('/orders') || path.startsWith('/checkout/success'))}
+          {user?.role === 'admin' &&
+            navLink('/admin/users', 'Kelola User', 'nav-users-link', path.startsWith('/admin/users'))}
+          {user?.role === 'admin' &&
+            navLink('/admin/orders', 'Pesanan Toko', 'nav-store-orders-link', path.startsWith('/admin/orders'))}
+          {navLink('/orders', 'Pesanan Saya', 'nav-orders-link', path.startsWith('/orders') || path.startsWith('/checkout/success'))}
           <Link
             to="/cart"
             className={`app-nav-link nav-cart${path === '/cart' || path === '/checkout' ? ' is-active' : ''}`}
@@ -131,36 +136,7 @@ export default function AppShell({ children, onReset }: Props) {
             </span>
           </Link>
         </nav>
-        <div className="header-user">
-          {user && (
-            <span id="header-username" data-testid="header-username">
-              {user.name}
-              {user.role === 'admin' && (
-                <span className="badge" id="header-admin-badge" data-testid="header-admin-badge">
-                  Admin
-                </span>
-              )}
-            </span>
-          )}
-          <button
-            type="button"
-            className="btn btn-secondary"
-            id="header-reset-btn"
-            data-testid="header-reset-btn"
-            onClick={() => setConfirmReset(true)}
-          >
-            Reset Data
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            id="header-logout-btn"
-            data-testid="header-logout-btn"
-            onClick={handleLogout}
-          >
-            Keluar
-          </button>
-        </div>
+        <AccountMenu user={user} onReset={() => setConfirmReset(true)} onLogout={handleLogout} />
       </header>
 
       {children({ user, token })}
