@@ -79,8 +79,12 @@ router.put('/orders/:orderNumber/payment-proof', rawProof, async (req, res) => {
   } catch {
     fileName = '';
   }
+  // Di Vercel, body text/plain atau JSON bisa sudah diurai jadi string/objek: kembalikan ke Buffer
+  let buffer = req.body;
+  if (typeof buffer === 'string') buffer = Buffer.from(buffer, 'utf8');
+  else if (buffer && !Buffer.isBuffer(buffer) && typeof buffer === 'object' && Object.keys(buffer).length > 0) buffer = Buffer.from(JSON.stringify(buffer), 'utf8');
   sendResult(res, await orders.uploadProof(req.user, req.params.orderNumber, {
-    buffer: req.body,
+    buffer,
     contentType: req.get('content-type'),
     fileName,
   }));

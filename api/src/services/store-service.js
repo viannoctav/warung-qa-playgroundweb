@@ -132,7 +132,6 @@ function createStoreService(deps) {
   async function getCart(user) {
     return withStore(user, async (ownerId) => {
       const result = await cartResult(user, ownerId);
-      if (isBuggy(user)) result.body.data.subtotal = String(result.body.data.subtotal);
       return result;
     });
   }
@@ -295,7 +294,7 @@ function createStoreService(deps) {
 
   async function getOrder(user, orderNumber) {
     const number = String(orderNumber || '');
-    const order = isBuggy(user) && deps.findOrderByNumber ? await deps.findOrderByNumber(number) : await deps.getOrder(user.id, number);
+    const order = await deps.getOrder(user.id, number);
     if (!order) return fail(404, 'NOT_FOUND', TEXT.orderNotFound);
     return { status: 200, body: { data: publicOrder(order) } };
   }

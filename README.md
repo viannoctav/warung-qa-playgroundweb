@@ -6,6 +6,15 @@ Playground latihan QA untuk **manual testing, automation, dan API testing** dala
 | --- | --- |
 | Web | https://warung-qa-playgroundweb-pearl.vercel.app |
 | API | https://warung-qa-playgroundweb.vercel.app (cek: `/health`) |
+| Swagger | https://warung-qa-playgroundweb.vercel.app/api-docs |
+
+## Coba langsung (tanpa install)
+
+Untuk peserta dan pengunjung: **tidak perlu menjalankan apa pun di terminal.** Web, API, dan database sudah online.
+
+- **Manual / automation testing:** buka link Web, lalu login pakai salah satu akun demo di bawah (atau daftar akun baru).
+- **API testing:** pakai Postman, Swagger, atau tool lain langsung ke link API. Mulai dari `POST /api/v1/auth/login`, lalu kirim token di header `Authorization: Bearer <token>`.
+- **Data:** semua orang memakai toko yang sama. Kalau datanya berantakan, pakai **Reset Data** di menu akun.
 
 ## Akun demo
 
@@ -130,23 +139,6 @@ Akun demo bisa dilihat di Kelola User, tapi tidak bisa diubah, diganti password,
 
 Semua endpoint selain `/health`, login, dan register butuh header `Authorization: Bearer <token>`.
 
-## Menjalankan di laptop
+## Dokumen pendukung
 
-Butuh Node.js LTS. Buat file `api/.env` berisi `DATABASE_URL` (dari Neon) dan `JWT_SECRET`.
-
-```powershell
-# Terminal 1: API
-cd api
-npm install
-npm run db:setup   # buat/perbarui tabel + akun demo (aman diulang)
-npm run dev        # http://localhost:3000
-
-# Terminal 2: Web
-cd web
-npm install
-npm run dev        # http://localhost:5173
-```
-
-Unit test API: `cd api` lalu `npm test`.
-
-Daftar `data-testid` ada di [TESTIDS.md](TESTIDS.md).
+Daftar `id` / `data-testid` semua elemen ada di [TESTIDS.md](TESTIDS.md).

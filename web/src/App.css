@@ -3078,11 +3078,22 @@ a.btn {
   min-width: 0;
 }
 
-/* Akun latihan bug_user: tombol tanpa garis fokus */
-.no-focus-ring:focus,
-.no-focus-ring:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
+/* Akun latihan bug_user: bug tampilan (lihat catatan mentor) */
+@media (max-width: 768px) {
+  .bug-hide-mobile {
+    display: none !important;
+  }
+}
+.bug-invisible-text,
+.bug-invisible-text:hover {
+  color: #ffffff !important;
+  background: #ffffff !important;
+  border-color: #e5e5e5 !important;
+}
+.bug-squash {
+  width: 96px !important;
+  height: 28px !important;
+  object-fit: fill !important;
 }
 
 /* =====================================================================

@@ -347,7 +347,7 @@ function CheckoutContent({ token }: { token: string }) {
               id: `${id}-input`,
               'data-testid': `${id}-input`,
               name: field,
-              placeholder,
+              placeholder: isBugUser() && field === 'address' ? 'Lorem ipsum dolor sit amet' : placeholder,
               value: address[field],
               'aria-invalid': message ? true : undefined,
               'aria-describedby': message ? `${id}-error` : undefined,
@@ -554,7 +554,7 @@ function CheckoutContent({ token }: { token: string }) {
           </button>
           <button
             type="button"
-            className="btn btn-primary"
+            className={`btn btn-primary${buggy ? ' bug-hide-mobile' : ''}`}
             id="checkout-place-order-btn"
             data-testid="checkout-place-order-btn"
             disabled={submitting && !buggy}

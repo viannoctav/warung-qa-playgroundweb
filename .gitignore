@@ -5,4 +5,4 @@ node_modules/
 dist/
 
 # Catatan pribadi (hanya di laptop, tidak ikut ke GitHub)
-*.local.md
+#*.local.md

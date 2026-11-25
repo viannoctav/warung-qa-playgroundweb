@@ -77,11 +77,6 @@ function CartLine({ item, token, onCart, onError }: {
         <Link to={`/shop/${id}`} className="cart-line-name" id={`cart-item-name-${id}`} data-testid={`cart-item-name-${id}`}>
           {product.name}
         </Link>
-        {isBugUser() && (
-          <span className="sr-only" data-testid={`cart-item-name-${id}`}>
-            {product.name}
-          </span>
-        )}
         <span className="muted" id={`cart-item-price-${id}`} data-testid={`cart-item-price-${id}`}>
           {formatRupiah(product.price)}
         </span>
@@ -181,7 +176,7 @@ function CartContent({ token, reloadSignal }: { token: string; reloadSignal: num
         {cart && cart.items.length > 0 && (
           <button
             type="button"
-            className={`btn btn-ghost btn-ghost-danger${isBugUser() ? ' no-focus-ring' : ''}`}
+            className="btn btn-ghost btn-ghost-danger"
             id="cart-clear-btn"
             data-testid="cart-clear-btn"
             disabled={clearing}
@@ -245,7 +240,7 @@ function CartContent({ token, reloadSignal }: { token: string; reloadSignal: num
             )}
             <button
               type="button"
-              className="btn btn-primary btn-block"
+              className={`btn btn-primary btn-block${isBugUser() ? ' bug-invisible-text' : ''}`}
               id="cart-checkout-btn"
               data-testid="cart-checkout-btn"
               disabled={cart.hasProblem}

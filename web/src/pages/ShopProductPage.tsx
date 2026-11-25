@@ -21,7 +21,8 @@ function quantityError(text: string, stock: number, inCart: number): string | nu
   if (!/^\d+$/.test(text)) return CHECKOUT_MESSAGES.quantity
   const quantity = Number(text)
   if (quantity < 1 || quantity > 99) return CHECKOUT_MESSAGES.quantity
-  if (quantity > stock - inCart) {
+  // bug_user: stok tidak dicek
+  if (quantity > stock - inCart && !isBugUser()) {
     return inCart > 0
       ? `Stok tidak cukup. Sisa stok: ${stock}, sudah ${inCart} di keranjangmu`
       : `Stok tidak cukup. Sisa stok: ${stock}`
@@ -197,7 +198,7 @@ function ProductDetail({ token, productId }: { token: string; productId: number 
               idPrefix="shop-product-quantity"
               label="Jumlah"
               value={quantity}
-              max={available}
+              max={isBugUser() ? 99 : available}
               disabled={available === 0}
               onChange={(value) => {
                 setQuantity(value)

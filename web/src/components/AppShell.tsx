@@ -116,7 +116,7 @@ export default function AppShell({ children, onReset }: Props) {
         <img
           src="/logo-warung-qa-dark.png"
           alt="Warung QA"
-          className="header-logo"
+          className={`header-logo${isBugUser() ? ' bug-squash' : ''}`}
           id="brand-logo"
           data-testid="brand-logo"
           width={640}
